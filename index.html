@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <title>Vape Counter</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="top">
+    <div class="title">
+      <h1>Vape Counter</h1>
+      <div class="sub" id="todayLabel">Today</div>
+    </div>
+    <div class="row">
+      <button class="ghost" id="toggleQuickBtn" aria-label="Toggle quick mode">⚡</button>
+      <button class="ghost" id="openSettingsBtn" aria-label="Open settings">⚙︎</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card hero">
+      <div class="heroRow">
+        <div>
+          <div class="kicker">Today’s total</div>
+          <div class="big" id="todayCount">0</div>
+          <div class="meta" id="goalLine">Goal: —</div>
+        </div>
+
+        <div class="heroBtns">
+          <button class="delay" id="delayBtn" aria-label="Start delay timer">
+            Delay
+            <span class="delaySub" id="delaySub">10m</span>
+          </button>
+
+          <button class="plus" id="logBtn" aria-label="Log a vape">
+            + Vape
+          </button>
+        </div>
+      </div>
+
+      <div class="delayPanel" id="delayPanel" hidden>
+        <div class="delayLeft">
+          <div class="delayK">Delay running</div>
+          <div class="delayT" id="delayCountdown">—</div>
+          <div class="delayS" id="delayMsg">Logging is locked until the timer ends.</div>
+        </div>
+        <button class="ghost danger" id="cancelDelayBtn">Cancel</button>
+      </div>
+
+      <div class="miniRow" id="miniRow">
+        <div class="mini">
+          <div class="miniK">Streak</div>
+          <div class="miniV" id="streakVal">0</div>
+          <div class="miniS">days ≤ goal</div>
+        </div>
+        <div class="mini">
+          <div class="miniK">This week</div>
+          <div class="miniV" id="weekTotal">0</div>
+          <div class="miniS">last 7 days</div>
+        </div>
+        <div class="mini">
+          <div class="miniK">Est. spend</div>
+          <div class="miniV" id="spendVal">$0.00</div>
+          <div class="miniS">last 7 days</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="weeklyCard">
+      <div class="cardHead">
+        <h2>Weekly trend</h2>
+        <div class="muted">Tap a bar for that day’s count</div>
+      </div>
+      <canvas id="weekChart" width="760" height="240" aria-label="Weekly chart"></canvas>
+      <div class="hint" id="chartHint"></div>
+    </section>
+
+    <section class="card" id="logCard">
+      <div class="cardHead">
+        <h2>Log</h2>
+        <div class="row">
+          <button class="ghost" id="undoBtn">Undo last</button>
+          <button class="ghost danger" id="clearTodayBtn">Clear today</button>
+        </div>
+      </div>
+
+      <div class="logMeta" id="logMeta"></div>
+      <div class="log" id="logList"></div>
+
+      <div class="row bottomRow">
+        <button class="ghost" id="exportBtn">Export</button>
+        <label class="ghost fileBtn">
+          Import
+          <input type="file" id="importFile" accept="application/json" hidden />
+        </label>
+        <button class="ghost danger" id="wipeAllBtn">Wipe all</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Settings modal -->
+  <div class="modal" id="settingsModal" aria-hidden="true">
+    <div class="sheet">
+      <div class="sheetHead">
+        <h3>Settings</h3>
+        <button class="ghost" id="closeSettingsBtn" aria-label="Close settings">✕</button>
+      </div>
+
+      <div class="form">
+        <label>
+          <span>Daily goal (max hits)</span>
+          <input type="number" inputmode="numeric" min="0" step="1" id="goalInput" placeholder="e.g. 30" />
+        </label>
+
+        <label>
+          <span>$ per hit (estimate)</span>
+          <input type="number" inputmode="decimal" min="0" step="0.001" id="costInput" placeholder="e.g. 0.20" />
+          <small class="muted">
+            Tip: If a $25 disposable lasts ~800 hits, use 25/800 = 0.03125
+          </small>
+        </label>
+
+        <label>
+          <span>Delay timer length (minutes)</span>
+          <input type="number" inputmode="numeric" min="1" step="1" id="delayMinutesInput" placeholder="e.g. 10" />
+          <small class="muted">Delay locks logging until the countdown ends.</small>
+        </label>
+
+        <label class="switchRow">
+          <span>Quick Mode (minimal screen)</span>
+          <input type="checkbox" id="quickModeToggle" />
+        </label>
+
+        <label class="switchRow">
+          <span>Enable offline cache</span>
+          <input type="checkbox" id="offlineToggle" />
+        </label>
+
+        <div class="row">
+          <button class="primary" id="saveSettingsBtn">Save</button>
+          <button class="ghost" id="resetSettingsBtn">Reset defaults</button>
+        </div>
+
+        <div class="muted tiny">
+          Data lives on your device only (unless you export it).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
