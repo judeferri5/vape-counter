@@ -1,6 +1,6 @@
 /* Vape Counter PWA — local-only storage */
 
-const STORAGE_KEY = "vapeCounter.v2"; // bumped due to new fields
+const STORAGE_KEY = "vapeCounter.v3"; // bumped for streak fix + new UI label
 
 const $ = (id) => document.getElementById(id);
 
@@ -10,7 +10,10 @@ const els = {
   todayLabel: $("todayLabel"),
   todayCount: $("todayCount"),
   goalLine: $("goalLine"),
+
   streakVal: $("streakVal"),
+  streakSub: $("streakSub"),
+
   weekTotal: $("weekTotal"),
   spendVal: $("spendVal"),
   logList: $("logList"),
@@ -111,10 +114,12 @@ function init() {
     renderAll();
   });
 
-  // register SW if user wants offline cache
-  if (state.settings.offlineCache) {
-    registerSW();
-  }
+  // redraw chart on rotate/resize
+  window.addEventListener("resize", () => {
+    if (!document.body.classList.contains("quick")) renderChart();
+  });
+
+  if (state.settings.offlineCache) registerSW();
 
   applyQuickMode();
   syncDelayLoop();
@@ -122,17 +127,18 @@ function init() {
 
 function defaultSettings() {
   return {
-    dailyGoal: 30,       // hits/day
-    costPerHit: 0.03,    // dollars per hit
-    delayMinutes: 10,    // minutes
-    quickMode: false,    // minimal UI
-    offlineCache: false  // user-controlled
+    dailyGoal: 30,
+    costPerHit: 0.03,
+    delayMinutes: 10,
+    quickMode: false,
+    offlineCache: false
   };
 }
 
+/* ---------- Storage / migration ---------- */
+
 function loadState() {
-  // allow reading older versions too
-  const candidates = ["vapeCounter.v2", "vapeCounter.v1"];
+  const candidates = ["vapeCounter.v3", "vapeCounter.v2", "vapeCounter.v1"];
   for (const key of candidates) {
     try {
       const raw = localStorage.getItem(key);
@@ -143,10 +149,12 @@ function loadState() {
       const hits = Array.isArray(parsed.hits) ? parsed.hits.filter(x => typeof x === "number") : [];
       const delayUntil = (typeof parsed.delayUntil === "number") ? parsed.delayUntil : null;
 
-      // migrate to v2 key
       const s = { hits, settings, delayUntil, chartSelectedDay: null };
+
+      // migrate forward
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ hits, settings, delayUntil }));
       if (key !== STORAGE_KEY) localStorage.removeItem(key);
+
       return s;
     } catch {
       // try next
@@ -163,18 +171,15 @@ function persist() {
   }));
 }
 
-function nowTs() {
-  return Date.now();
-}
+function nowTs() { return Date.now(); }
 
-/* Delay / lock logic */
+/* ---------- Delay / lock logic ---------- */
 
 function isLocked() {
   return typeof state.delayUntil === "number" && nowTs() < state.delayUntil;
 }
 
 function startDelay() {
-  // already running -> restart from now (intentional friction)
   const mins = clampInt(state.settings.delayMinutes, 1, 240);
   state.delayUntil = nowTs() + mins * 60 * 1000;
   persist();
@@ -183,7 +188,6 @@ function startDelay() {
 }
 
 function cancelDelay() {
-  // this is here mainly for mis-taps; you can remove this if you want it “no escape”
   state.delayUntil = null;
   persist();
   syncDelayLoop();
@@ -199,19 +203,19 @@ function syncDelayLoop() {
   if (!isLocked()) {
     state.delayUntil = null;
     persist();
-    els.delayPanel.hidden = true;
+    if (els.delayPanel) els.delayPanel.hidden = true;
     updateLockUI();
     return;
   }
 
-  els.delayPanel.hidden = false;
+  if (els.delayPanel) els.delayPanel.hidden = false;
   updateLockUI();
 
   countdownTimer = setInterval(() => {
     if (!isLocked()) {
       state.delayUntil = null;
       persist();
-      els.delayPanel.hidden = true;
+      if (els.delayPanel) els.delayPanel.hidden = true;
       updateLockUI();
       clearInterval(countdownTimer);
       countdownTimer = null;
@@ -228,8 +232,6 @@ function updateLockUI() {
 
   const locked = isLocked();
   els.logBtn.disabled = locked;
-  // Delay button stays enabled so you can restart a longer delay if you want
-  // els.delayBtn.disabled = locked;
 
   if (!locked) return;
 
@@ -237,7 +239,7 @@ function updateLockUI() {
   els.delayCountdown.textContent = formatCountdown(msLeft);
 }
 
-/* Core data actions */
+/* ---------- Core actions ---------- */
 
 function addHit() {
   state.hits.push(nowTs());
@@ -269,7 +271,7 @@ function wipeAll() {
   renderAll();
 }
 
-/* Settings */
+/* ---------- Settings ---------- */
 
 function openSettings() {
   els.goalInput.value = String(state.settings.dailyGoal ?? "");
@@ -309,8 +311,6 @@ function saveSettingsFromUI() {
   if (offlineWanted && !prevOffline) registerSW();
   if (!offlineWanted && prevOffline) unregisterSW();
 
-  // if delay is running, countdown display should match new delay length label,
-  // but we do NOT rewrite the current delay end time—keeps it honest.
   syncDelayLoop();
   renderAll();
 }
@@ -319,7 +319,7 @@ function applyQuickMode() {
   document.body.classList.toggle("quick", !!state.settings.quickMode);
 }
 
-/* Rendering */
+/* ---------- Rendering ---------- */
 
 function renderAll() {
   renderHeader();
@@ -344,7 +344,6 @@ function renderToday() {
   const g = state.settings.dailyGoal;
   els.goalLine.textContent = Number.isFinite(g) ? `Goal: ≤ ${g} hits/day` : `Goal: —`;
 
-  // keep the delay badge in sync
   els.delaySub.textContent = `${clampInt(state.settings.delayMinutes, 1, 240)}m`;
 }
 
@@ -356,19 +355,47 @@ function renderStats() {
   els.weekTotal.textContent = String(total);
   els.spendVal.textContent = dollars(total * (state.settings.costPerHit || 0));
 
-  // streak: consecutive days (ending today) where daily count <= goal
   const goal = state.settings.dailyGoal;
-  let streak = 0;
+  const { streak, streakPossible } = computeStreak(goal);
 
-  if (Number.isFinite(goal)) {
-    for (let i = 0; i < 3650; i++) {
-      const day = shiftDayKey(ymd(new Date()), -i);
-      const c = countForDay(day);
-      if (c <= goal) streak++;
-      else break;
-    }
-  }
   els.streakVal.textContent = String(streak);
+
+  // Make the label honest when there is no history yet
+  if (!streakPossible) {
+    els.streakSub.textContent = "days ≤ goal (start logging)";
+  } else {
+    els.streakSub.textContent = "days ≤ goal";
+  }
+}
+
+/**
+ * Streak rules (fixes the “3650 nonsense”):
+ * - Streak only counts back to the FIRST day you ever logged anything.
+ * - If you haven't logged anything yet, streak is 0 and flagged as "not possible".
+ * - If your first log day is today, streak can only be 0 or 1 depending on goal.
+ */
+function computeStreak(goal) {
+  if (!Number.isFinite(goal)) return { streak: 0, streakPossible: false };
+  if (!state.hits.length) return { streak: 0, streakPossible: false };
+
+  const firstDay = ymd(new Date(Math.min(...state.hits)));
+  const todayKey = ymd(new Date());
+
+  let streak = 0;
+  for (let i = 0; ; i++) {
+    const day = shiftDayKey(todayKey, -i);
+
+    // stop once we moved earlier than first log day
+    if (day < firstDay) break;
+
+    const c = countForDay(day);
+    // Only count a day as part of streak if it met the goal.
+    // Days with zero hits still count (that's good) BUT only within your logged range.
+    if (c <= goal) streak++;
+    else break;
+  }
+
+  return { streak, streakPossible: true };
 }
 
 function renderLog() {
@@ -411,16 +438,17 @@ function renderLog() {
 }
 
 function renderChart() {
-  // In quick mode the weekly card is hidden; skip work.
   if (document.body.classList.contains("quick")) return;
 
   const canvas = els.chart;
   const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
 
+  // Use the card/container width — fixes iOS overflow/drift
   const dpr = window.devicePixelRatio || 1;
-  const cssW = Math.max(320, Math.floor(rect.width || 680));
+  const container = canvas.parentElement; // the card
+  const cssW = Math.max(320, Math.floor(container.clientWidth));
   const cssH = 240;
+
   canvas.style.width = cssW + "px";
   canvas.style.height = cssH + "px";
   canvas.width = Math.floor(cssW * dpr);
@@ -437,7 +465,7 @@ function renderChart() {
   const chartW = cssW - pad*2;
   const chartH = cssH - pad*2 - 10;
 
-  ctx.globalAlpha = 1;
+  // baseline
   ctx.lineWidth = 1;
   ctx.strokeStyle = "rgba(255,255,255,.10)";
   ctx.beginPath();
@@ -464,6 +492,7 @@ function renderChart() {
 
     const d = fromDayKey(days[i]);
     const lbl = d.toLocaleDateString(undefined, { weekday: "short" });
+
     ctx.fillStyle = "rgba(233,238,246,.85)";
     ctx.font = "12px ui-sans-serif, system-ui";
     ctx.textAlign = "center";
@@ -496,11 +525,11 @@ function renderChart() {
   };
 }
 
-/* Export / import */
+/* ---------- Export / import ---------- */
 
 function exportData() {
   const payload = {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     hits: state.hits,
     settings: state.settings,
@@ -546,7 +575,7 @@ async function importData(e) {
   }
 }
 
-/* helpers */
+/* ---------- Helpers ---------- */
 
 function ymd(date) {
   const y = date.getFullYear();
@@ -617,7 +646,7 @@ function formatCountdown(ms) {
   return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
-/* Offline cache control (service worker) */
+/* ---------- Offline cache control (service worker) ---------- */
 
 async function registerSW() {
   if (!("serviceWorker" in navigator)) return;

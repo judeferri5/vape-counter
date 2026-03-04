@@ -20,14 +20,22 @@ body{
   color:var(--text);
 }
 
+/* iOS safe-area friendly sticky header */
 .top{
-  position:sticky; top:0;
-  padding:16px 16px 10px;
+  position: sticky;
+  top: 0;
+
+  padding-top: calc(12px + env(safe-area-inset-top));
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
+  padding-bottom: 10px;
+
   display:flex; align-items:center; justify-content:space-between;
+
   backdrop-filter: blur(10px);
-  background: linear-gradient(to bottom, rgba(11,15,20,.85), rgba(11,15,20,.55));
+  background: linear-gradient(to bottom, rgba(11,15,20,.90), rgba(11,15,20,.60));
   border-bottom:1px solid var(--line);
-  z-index:10;
+  z-index:1000;
 }
 
 .title h1{margin:0; font-size:20px; letter-spacing:.2px}
@@ -36,7 +44,11 @@ body{
 .wrap{
   max-width:720px;
   margin:0 auto;
-  padding:14px 14px 28px;
+  padding:
+    14px
+    calc(14px + env(safe-area-inset-right))
+    calc(28px + env(safe-area-inset-bottom))
+    calc(14px + env(safe-area-inset-left));
   display:flex; flex-direction:column; gap:12px;
 }
 
@@ -218,6 +230,12 @@ small{line-height:1.35}
   border-radius:14px;
   padding:10px 12px;
   background: rgba(255,255,255,.02);
+}
+
+/* Make the canvas always fit the card width (fix iPhone drift/overflow) */
+#weekChart{
+  width:100%;
+  display:block;
 }
 
 /* QUICK MODE */
