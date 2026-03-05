@@ -7,7 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-  <title>Vape Counter</title>
+  <title>Habit Tracker</title>
+
+  <!-- Home screen icons -->
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -15,132 +20,202 @@
 <body>
   <header class="top">
     <div class="title">
-      <h1>Vape Counter</h1>
+      <h1 id="appTitle">Habit Tracker</h1>
       <div class="sub" id="todayLabel">Today</div>
     </div>
+
     <div class="row">
+      <div class="tabs" role="tablist" aria-label="Habits">
+        <button class="tab active" id="tabVape" role="tab" aria-selected="true">Vapes</button>
+        <button class="tab" id="tabDrink" role="tab" aria-selected="false">Solo drinking</button>
+      </div>
+
       <button class="ghost" id="toggleQuickBtn" aria-label="Toggle quick mode">⚡</button>
       <button class="ghost" id="openSettingsBtn" aria-label="Open settings">⚙︎</button>
     </div>
   </header>
 
   <main class="wrap">
-    <section class="card hero">
-      <div class="heroRow">
-        <div>
-          <div class="kicker">Today’s total</div>
-          <div class="big" id="todayCount">0</div>
-          <div class="meta" id="goalLine">Goal: —</div>
+
+    <!-- ===================== VAPES ===================== -->
+    <section id="pageVape" class="page active" aria-label="Vapes page">
+
+      <section class="card hero">
+        <div class="heroRow">
+          <div>
+            <div class="kicker">Today’s total</div>
+            <div class="big" id="todayCount">0</div>
+            <div class="meta" id="goalLine">Goal: —</div>
+          </div>
+
+          <div class="heroBtns">
+            <button class="delay" id="delayBtn" aria-label="Start delay timer">
+              Delay <span class="delaySub" id="delaySub">10m</span>
+            </button>
+
+            <button class="plus" id="logBtn" aria-label="Log a vape">
+              + Vape
+            </button>
+          </div>
         </div>
 
-        <div class="heroBtns">
-          <button class="delay" id="delayBtn" aria-label="Start delay timer">
-            Delay
-            <span class="delaySub" id="delaySub">10m</span>
-          </button>
+        <div class="delayPanel" id="delayPanel" hidden>
+          <div class="delayLeft">
+            <div class="delayK">Delay running</div>
+            <div class="delayT" id="delayCountdown">—</div>
+            <div class="delayS" id="delayMsg">Logging is locked until the timer ends.</div>
+          </div>
+          <button class="ghost danger" id="cancelDelayBtn">Cancel</button>
+        </div>
 
-          <button class="plus" id="logBtn" aria-label="Log a vape">
-            + Vape
-          </button>
+        <div class="miniRow" id="miniRow">
+          <div class="mini">
+            <div class="miniK">Streak</div>
+            <div class="miniV" id="streakVal">0</div>
+            <div class="miniS" id="streakSub">days ≤ goal</div>
+          </div>
+          <div class="mini">
+            <div class="miniK">This week</div>
+            <div class="miniV" id="weekTotal">0</div>
+            <div class="miniS">last 7 days</div>
+          </div>
+          <div class="mini">
+            <div class="miniK">Est. spend</div>
+            <div class="miniV" id="spendVal">$0.00</div>
+            <div class="miniS">last 7 days</div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div class="delayPanel" id="delayPanel" hidden>
-        <div class="delayLeft">
-          <div class="delayK">Delay running</div>
-          <div class="delayT" id="delayCountdown">—</div>
-          <div class="delayS" id="delayMsg">Logging is locked until the timer ends.</div>
+      <section class="card" id="weeklyCard">
+        <div class="cardHead">
+          <h2>Weekly trend</h2>
+          <div class="muted">Tap a bar for that day’s count</div>
         </div>
-        <button class="ghost danger" id="cancelDelayBtn">Cancel</button>
-      </div>
+        <canvas id="weekChart" height="240" aria-label="Weekly chart"></canvas>
+        <div class="hint" id="chartHint"></div>
+      </section>
 
-      <div class="miniRow" id="miniRow">
-        <div class="mini">
-          <div class="miniK">Streak</div>
-          <div class="miniV" id="streakVal">0</div>
-          <div class="miniS" id="streakSub">days ≤ goal</div>
+      <section class="card" id="longCard">
+        <div class="cardHead">
+          <h2>Long-term</h2>
+          <div class="rangePills" id="rangePills">
+            <button class="pill active" data-range="90d">90 days</button>
+            <button class="pill" data-range="1y">1 year</button>
+            <button class="pill" data-range="all">All time</button>
+          </div>
         </div>
-        <div class="mini">
-          <div class="miniK">This week</div>
-          <div class="miniV" id="weekTotal">0</div>
-          <div class="miniS">last 7 days</div>
+
+        <canvas id="longChart" height="240" aria-label="Long term chart"></canvas>
+        <div class="hint" id="longHint"></div>
+
+        <div class="ltGrid">
+          <div class="ltBox">
+            <div class="miniK">Lifetime hits</div>
+            <div class="miniV" id="lifeHits">0</div>
+            <div class="miniS" id="lifeDays">0 day(s) tracked</div>
+          </div>
+          <div class="ltBox">
+            <div class="miniK">Lifetime spend</div>
+            <div class="miniV" id="lifeSpend">$0.00</div>
+            <div class="miniS" id="lifeAvg">$0.00/day avg</div>
+          </div>
+          <div class="ltBox">
+            <div class="miniK">This week</div>
+            <div class="miniV" id="wkNow">0</div>
+            <div class="miniS" id="wkDelta">— vs last week</div>
+          </div>
+          <div class="ltBox">
+            <div class="miniK">Trend</div>
+            <div class="miniV" id="wkTrend">—</div>
+            <div class="miniS">4-week avg change</div>
+          </div>
         </div>
-        <div class="mini">
-          <div class="miniK">Est. spend</div>
-          <div class="miniV" id="spendVal">$0.00</div>
-          <div class="miniS">last 7 days</div>
+      </section>
+
+      <section class="card" id="logCard">
+        <div class="cardHead">
+          <h2>Log</h2>
+          <div class="row">
+            <button class="ghost" id="undoBtn">Undo last</button>
+            <button class="ghost danger" id="clearTodayBtn">Clear today</button>
+          </div>
         </div>
-      </div>
+
+        <div class="logMeta" id="logMeta"></div>
+        <div class="log" id="logList"></div>
+
+        <div class="row bottomRow">
+          <button class="ghost" id="exportBtn">Export</button>
+          <label class="ghost fileBtn">
+            Import
+            <input type="file" id="importFile" accept="application/json" hidden />
+          </label>
+          <button class="ghost danger" id="wipeAllBtn">Wipe all</button>
+        </div>
+      </section>
     </section>
 
-    <section class="card" id="weeklyCard">
-      <div class="cardHead">
-        <h2>Weekly trend</h2>
-        <div class="muted">Tap a bar for that day’s count</div>
-      </div>
-      <canvas id="weekChart" width="760" height="240" aria-label="Weekly chart"></canvas>
-      <div class="hint" id="chartHint"></div>
+    <!-- ===================== SOLO DRINKING ===================== -->
+    <section id="pageDrink" class="page" aria-label="Solo drinking page">
+      <section class="card hero">
+        <div class="heroRow">
+          <div>
+            <div class="kicker">Days since last solo drink</div>
+            <div class="big" id="drinkDaysSince">0</div>
+            <div class="meta" id="drinkLastLabel">Last: —</div>
+          </div>
+
+          <div class="heroBtns">
+            <button class="delay" id="drinkMarkYesterdayBtn" aria-label="Toggle solo drink yesterday">
+              Toggle <span class="delaySub">Yesterday</span>
+            </button>
+
+            <button class="plus" id="drinkToggleTodayBtn" aria-label="Toggle solo drink today">
+              Toggle <span class="delaySub">Today</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="miniRow">
+          <div class="mini">
+            <div class="miniK">Current streak</div>
+            <div class="miniV" id="drinkStreak">0</div>
+            <div class="miniS">days without solo drinking</div>
+          </div>
+          <div class="mini">
+            <div class="miniK">Last 30 days</div>
+            <div class="miniV" id="drink30Count">0</div>
+            <div class="miniS">solo drinking days</div>
+          </div>
+          <div class="mini">
+            <div class="miniK">Best streak</div>
+            <div class="miniV" id="drinkBestStreak">0</div>
+            <div class="miniS">days (all time)</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead">
+          <h2>Last 30 days heatmap</h2>
+          <div class="muted">Tap a day to toggle</div>
+        </div>
+
+        <div class="heatWrap">
+          <div class="heatLegend">
+            <span class="muted">Less</span>
+            <span class="dot off"></span>
+            <span class="dot on"></span>
+            <span class="muted">More</span>
+          </div>
+
+          <div id="drinkHeatmap" class="heatmap" aria-label="Solo drinking heatmap"></div>
+          <div class="hint" id="drinkHeatHint"></div>
+        </div>
+      </section>
     </section>
 
-    <!-- NEW: Long-term card -->
-    <section class="card" id="longCard">
-      <div class="cardHead">
-        <h2>Long-term</h2>
-        <div class="rangePills" id="rangePills">
-          <button class="pill active" data-range="90d">90 days</button>
-          <button class="pill" data-range="1y">1 year</button>
-          <button class="pill" data-range="all">All time</button>
-        </div>
-      </div>
-
-      <canvas id="longChart" height="240" aria-label="Long term chart"></canvas>
-      <div class="hint" id="longHint"></div>
-
-      <div class="ltGrid">
-        <div class="ltBox">
-          <div class="miniK">Lifetime hits</div>
-          <div class="miniV" id="lifeHits">0</div>
-          <div class="miniS" id="lifeDays">0 day(s) tracked</div>
-        </div>
-        <div class="ltBox">
-          <div class="miniK">Lifetime spend</div>
-          <div class="miniV" id="lifeSpend">$0.00</div>
-          <div class="miniS" id="lifeAvg">$0.00/day avg</div>
-        </div>
-        <div class="ltBox">
-          <div class="miniK">This week</div>
-          <div class="miniV" id="wkNow">0</div>
-          <div class="miniS" id="wkDelta">— vs last week</div>
-        </div>
-        <div class="ltBox">
-          <div class="miniK">Trend</div>
-          <div class="miniV" id="wkTrend">—</div>
-          <div class="miniS">4-week avg change</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card" id="logCard">
-      <div class="cardHead">
-        <h2>Log</h2>
-        <div class="row">
-          <button class="ghost" id="undoBtn">Undo last</button>
-          <button class="ghost danger" id="clearTodayBtn">Clear today</button>
-        </div>
-      </div>
-
-      <div class="logMeta" id="logMeta"></div>
-      <div class="log" id="logList"></div>
-
-      <div class="row bottomRow">
-        <button class="ghost" id="exportBtn">Export</button>
-        <label class="ghost fileBtn">
-          Import
-          <input type="file" id="importFile" accept="application/json" hidden />
-        </label>
-        <button class="ghost danger" id="wipeAllBtn">Wipe all</button>
-      </div>
-    </section>
   </main>
 
   <!-- Settings modal -->
@@ -159,10 +234,8 @@
 
         <label>
           <span>$ per hit (estimate)</span>
-          <input type="number" inputmode="decimal" min="0" step="0.001" id="costInput" placeholder="e.g. 0.20" />
-          <small class="muted">
-            Tip: If a $25 disposable lasts ~800 hits, use 25/800 = 0.03125
-          </small>
+          <input type="number" inputmode="decimal" min="0" step="0.001" id="costInput" placeholder="e.g. 0.031" />
+          <small class="muted">Tip: If a $25 disposable lasts ~800 hits, use 25/800 = 0.03125</small>
         </label>
 
         <label>
@@ -172,7 +245,7 @@
         </label>
 
         <label class="switchRow">
-          <span>Quick Mode (minimal screen)</span>
+          <span>Quick Mode</span>
           <input type="checkbox" id="quickModeToggle" />
         </label>
 
@@ -186,9 +259,12 @@
           <button class="ghost" id="resetSettingsBtn">Reset defaults</button>
         </div>
 
-        <div class="muted tiny">
-          Data lives on your device only (unless you export it).
+        <div class="row" style="margin-top:4px;">
+          <button class="ghost" id="forceRefreshBtn">Force refresh app</button>
+          <div class="muted tiny" id="buildLabel">Build: —</div>
         </div>
+
+        <div class="muted tiny">Data lives on your device only (unless you export it).</div>
       </div>
     </div>
   </div>

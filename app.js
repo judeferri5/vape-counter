@@ -1,27 +1,31 @@
-/* Vape Counter PWA — local-only storage */
+/* Habit Tracker — Vapes + Solo Drinking (local-only storage) */
 
-const STORAGE_KEY = "vapeCounter.v4";
+const BUILD = "2026-03-04b";
+const STORAGE_KEY = "habitTracker.v1";
 
 const $ = (id) => document.getElementById(id);
 
-const state = loadState();
-
+/* --------------------------- DOM --------------------------- */
 const els = {
   todayLabel: $("todayLabel"),
+  appTitle: $("appTitle"),
+
+  tabVape: $("tabVape"),
+  tabDrink: $("tabDrink"),
+  pageVape: $("pageVape"),
+  pageDrink: $("pageDrink"),
+
+  // Vapes
   todayCount: $("todayCount"),
   goalLine: $("goalLine"),
-
   streakVal: $("streakVal"),
   streakSub: $("streakSub"),
-
   weekTotal: $("weekTotal"),
   spendVal: $("spendVal"),
   logList: $("logList"),
   logMeta: $("logMeta"),
-
   chart: $("weekChart"),
   chartHint: $("chartHint"),
-
   longChart: $("longChart"),
   longHint: $("longHint"),
   rangePills: $("rangePills"),
@@ -38,7 +42,6 @@ const els = {
   delaySub: $("delaySub"),
   delayPanel: $("delayPanel"),
   delayCountdown: $("delayCountdown"),
-  delayMsg: $("delayMsg"),
   cancelDelayBtn: $("cancelDelayBtn"),
 
   undoBtn: $("undoBtn"),
@@ -47,6 +50,18 @@ const els = {
   importFile: $("importFile"),
   wipeAllBtn: $("wipeAllBtn"),
 
+  // Drinking
+  drinkDaysSince: $("drinkDaysSince"),
+  drinkLastLabel: $("drinkLastLabel"),
+  drinkToggleTodayBtn: $("drinkToggleTodayBtn"),
+  drinkMarkYesterdayBtn: $("drinkMarkYesterdayBtn"),
+  drinkHeatmap: $("drinkHeatmap"),
+  drinkHeatHint: $("drinkHeatHint"),
+  drinkStreak: $("drinkStreak"),
+  drink30Count: $("drink30Count"),
+  drinkBestStreak: $("drinkBestStreak"),
+
+  // Settings
   settingsModal: $("settingsModal"),
   openSettingsBtn: $("openSettingsBtn"),
   closeSettingsBtn: $("closeSettingsBtn"),
@@ -57,6 +72,8 @@ const els = {
   offlineToggle: $("offlineToggle"),
   saveSettingsBtn: $("saveSettingsBtn"),
   resetSettingsBtn: $("resetSettingsBtn"),
+  forceRefreshBtn: $("forceRefreshBtn"),
+  buildLabel: $("buildLabel"),
 
   toggleQuickBtn: $("toggleQuickBtn"),
 };
@@ -64,92 +81,119 @@ const els = {
 let countdownTimer = null;
 let delayEndTimeout = null;
 
+/* --------------------------- State --------------------------- */
+const state = loadState();
+
+/* --------------------------- Init --------------------------- */
 init();
 renderAll();
 
 function init() {
-  els.logBtn.addEventListener("click", () => {
+  if (els.buildLabel) els.buildLabel.textContent = `Build: ${BUILD}`;
+
+  // Tabs
+  els.tabVape?.addEventListener("click", () => setPage("vape"));
+  els.tabDrink?.addEventListener("click", () => setPage("drink"));
+
+  // Vapes
+  els.logBtn?.addEventListener("click", () => {
     if (isLocked()) return;
     addHit();
     haptic();
   });
 
-  els.delayBtn.addEventListener("click", () => {
+  els.delayBtn?.addEventListener("click", () => {
     startDelay();
     haptic();
   });
 
-  els.cancelDelayBtn.addEventListener("click", () => {
+  els.cancelDelayBtn?.addEventListener("click", () => {
     cancelDelay();
     haptic();
   });
 
-  els.undoBtn.addEventListener("click", () => {
+  els.undoBtn?.addEventListener("click", () => {
     undoLast();
     haptic();
   });
 
-  els.clearTodayBtn.addEventListener("click", () => {
-    if (!confirm("Clear all hits for today?")) return;
+  els.clearTodayBtn?.addEventListener("click", () => {
+    if (!confirm("Clear all vape hits for today?")) return;
     clearToday();
   });
 
-  els.exportBtn.addEventListener("click", exportData);
-  els.importFile.addEventListener("change", importData);
+  els.exportBtn?.addEventListener("click", exportData);
+  els.importFile?.addEventListener("change", importData);
 
-  els.wipeAllBtn.addEventListener("click", () => {
-    if (!confirm("Wipe ALL data? This cannot be undone.")) return;
+  els.wipeAllBtn?.addEventListener("click", () => {
+    if (!confirm("Wipe ALL data (vapes + solo drinking)? This cannot be undone.")) return;
     wipeAll();
   });
 
-  // settings modal
-  els.openSettingsBtn.addEventListener("click", openSettings);
-  els.closeSettingsBtn.addEventListener("click", closeSettings);
-  els.settingsModal.addEventListener("click", (e) => {
+  // Solo drinking
+  els.drinkToggleTodayBtn?.addEventListener("click", () => {
+    toggleSoloDrinkForDay(ymd(new Date()));
+    haptic();
+  });
+
+  els.drinkMarkYesterdayBtn?.addEventListener("click", () => {
+    toggleSoloDrinkForDay(shiftDayKey(ymd(new Date()), -1));
+    haptic();
+  });
+
+  // Settings modal
+  els.openSettingsBtn?.addEventListener("click", openSettings);
+  els.closeSettingsBtn?.addEventListener("click", closeSettings);
+  els.settingsModal?.addEventListener("click", (e) => {
     if (e.target === els.settingsModal) closeSettings();
   });
 
-  els.saveSettingsBtn.addEventListener("click", saveSettingsFromUI);
-  els.resetSettingsBtn.addEventListener("click", () => {
+  els.saveSettingsBtn?.addEventListener("click", saveSettingsFromUI);
+
+  els.resetSettingsBtn?.addEventListener("click", () => {
     state.settings = defaultSettings();
     state.delayUntil = null;
-    state.longRange = "90d";
-    state.longSelectedKey = null;
+    state.chartSelectedDay = null;
+    state.vapes.longRange = "90d";
+    state.vapes.longSelectedKey = null;
     persist();
     applyQuickMode();
     closeSettings();
     renderAll();
   });
 
-  // quick mode hot toggle
-  els.toggleQuickBtn.addEventListener("click", () => {
+  els.toggleQuickBtn?.addEventListener("click", () => {
     state.settings.quickMode = !state.settings.quickMode;
     persist();
     applyQuickMode();
     renderAll();
   });
 
-  // long-range pills
-  if (els.rangePills) {
-    els.rangePills.addEventListener("click", (e) => {
-      const btn = e.target?.closest?.(".pill");
-      if (!btn) return;
-      state.longRange = btn.getAttribute("data-range") || "90d";
-      state.longSelectedKey = null;
-      persist();
-      renderLongTerm();
-    });
-  }
+  // Range pills
+  els.rangePills?.addEventListener("click", (e) => {
+    const btn = e.target?.closest?.(".pill");
+    if (!btn) return;
+    state.vapes.longRange = btn.getAttribute("data-range") || "90d";
+    state.vapes.longSelectedKey = null;
+    persist();
+    renderLongTerm();
+  });
 
-  // redraw charts on rotate/resize
+  // Force refresh
+  els.forceRefreshBtn?.addEventListener("click", async () => {
+    await forceRefreshApp();
+  });
+
+  // Redraw on resize
   window.addEventListener("resize", () => {
     if (!document.body.classList.contains("quick")) {
       renderChart();
       renderLongTerm();
     }
+    renderDrinkHeatmap();
   });
 
-  // iOS can throttle timers; resync UI when returning
+  // iOS throttles timers; always resync when returning
   const resync = () => {
     syncDelayLoop();
     renderAll();
@@ -160,7 +204,11 @@ function init() {
   window.addEventListener("focus", resync);
   window.addEventListener("pageshow", resync);
 
+  // Offline cache
   if (state.settings.offlineCache) registerSW();
+
+  // Apply starting page
+  setPage(state.activePage || "vape", { silent: true });
 
   applyQuickMode();
   syncDelayLoop();
@@ -172,50 +220,90 @@ function defaultSettings() {
     costPerHit: 0.03,
     delayMinutes: 10,
     quickMode: false,
-    offlineCache: false
+    offlineCache: false,
   };
 }
 
-/* ---------- Storage / migration ---------- */
+/* --------------------------- Storage --------------------------- */
 
 function loadState() {
-  const candidates = ["vapeCounter.v4", "vapeCounter.v3", "vapeCounter.v2", "vapeCounter.v1"];
-  for (const key of candidates) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) throw new Error("no state");
+    const parsed = JSON.parse(raw);
 
-      const settings = { ...defaultSettings(), ...(parsed.settings || {}) };
-      const hits = Array.isArray(parsed.hits) ? parsed.hits.filter(x => typeof x === "number") : [];
-      const delayUntil = (typeof parsed.delayUntil === "number") ? parsed.delayUntil : null;
-      const longRange = parsed.longRange || "90d";
+    const settings = { ...defaultSettings(), ...(parsed.settings || {}) };
+    const hits = Array.isArray(parsed.hits) ? parsed.hits.filter((x) => typeof x === "number") : [];
+    const delayUntil = typeof parsed.delayUntil === "number" ? parsed.delayUntil : null;
+    const activePage = parsed.activePage === "drink" ? "drink" : "vape";
 
-      const s = { hits, settings, delayUntil, chartSelectedDay: null, longRange, longSelectedKey: null };
+    const soloDaysArr = Array.isArray(parsed.soloDays) ? parsed.soloDays.filter((s) => typeof s === "string") : [];
+    const soloDrinkDays = new Set(soloDaysArr);
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ hits, settings, delayUntil, longRange }));
-      if (key !== STORAGE_KEY) localStorage.removeItem(key);
+    const vapes = parsed.vapes || {};
+    const longRange = vapes.longRange || "90d";
+    const longSelectedKey = vapes.longSelectedKey || null;
 
-      return s;
-    } catch {
-      // try next
-    }
+    return {
+      settings,
+      hits,
+      delayUntil,
+      activePage,
+      soloDrinkDays,
+      chartSelectedDay: parsed.chartSelectedDay || null,
+      vapes: { longRange, longSelectedKey },
+    };
+  } catch {
+    return {
+      settings: defaultSettings(),
+      hits: [],
+      delayUntil: null,
+      activePage: "vape",
+      soloDrinkDays: new Set(),
+      chartSelectedDay: null,
+      vapes: { longRange: "90d", longSelectedKey: null },
+    };
   }
-  return { hits: [], settings: defaultSettings(), delayUntil: null, chartSelectedDay: null, longRange: "90d", longSelectedKey: null };
 }
 
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    hits: state.hits,
+  const payload = {
     settings: state.settings,
+    hits: state.hits,
     delayUntil: state.delayUntil,
-    longRange: state.longRange
-  }));
+    activePage: state.activePage,
+    chartSelectedDay: state.chartSelectedDay,
+    vapes: state.vapes,
+    soloDays: [...state.soloDrinkDays],
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
-function nowTs() { return Date.now(); }
+function nowTs() {
+  return Date.now();
+}
 
-/* ---------- Delay / lock logic ---------- */
+/* --------------------------- Pages --------------------------- */
+
+function setPage(page, opts = {}) {
+  state.activePage = page === "drink" ? "drink" : "vape";
+  persist();
+
+  const vape = state.activePage === "vape";
+
+  els.pageVape?.classList.toggle("active", vape);
+  els.pageDrink?.classList.toggle("active", !vape);
+
+  els.tabVape?.classList.toggle("active", vape);
+  els.tabDrink?.classList.toggle("active", !vape);
+
+  els.tabVape?.setAttribute("aria-selected", vape ? "true" : "false");
+  els.tabDrink?.setAttribute("aria-selected", vape ? "false" : "true");
+
+  if (!opts.silent) renderAll();
+}
+
+/* --------------------------- Delay / Lock --------------------------- */
 
 function isLocked() {
   return typeof state.delayUntil === "number" && nowTs() < state.delayUntil;
@@ -226,13 +314,13 @@ function startDelay() {
   state.delayUntil = nowTs() + mins * 60 * 1000;
   persist();
 
-  // hard refresh at exact end time (fixes iOS background throttling visual bug)
+  // Guarantee a resync at end time even if iOS throttles intervals
   if (delayEndTimeout) clearTimeout(delayEndTimeout);
   const msLeft = Math.max(0, state.delayUntil - nowTs());
   delayEndTimeout = setTimeout(() => {
     syncDelayLoop();
     renderAll();
-  }, msLeft + 50);
+  }, msLeft + 100);
 
   syncDelayLoop();
   renderAll();
@@ -246,6 +334,10 @@ function cancelDelay() {
 
   persist();
   syncDelayLoop();
+
+  // Reset display back to configured delay length (even though panel hides)
+  renderVapeDelayUI(true);
+
   renderAll();
 }
 
@@ -255,46 +347,74 @@ function syncDelayLoop() {
     countdownTimer = null;
   }
 
+  // If unlocked, clean up and hide
   if (!isLocked()) {
-    state.delayUntil = null;
-    persist();
+    if (typeof state.delayUntil === "number" && nowTs() >= state.delayUntil) {
+      state.delayUntil = null;
+      persist();
+    }
     if (els.delayPanel) els.delayPanel.hidden = true;
-    updateLockUI();
+    if (els.logBtn) els.logBtn.disabled = false;
+    renderVapeDelayUI(false);
     return;
   }
 
   if (els.delayPanel) els.delayPanel.hidden = false;
-  updateLockUI();
+  if (els.logBtn) els.logBtn.disabled = true;
 
+  // High-frequency tick; if it stalls, focus/pageshow handlers fix it
   countdownTimer = setInterval(() => {
+    renderVapeDelayUI(false);
+
+    // Force-clear if time is up but UI hasn't caught up
     if (!isLocked()) {
       state.delayUntil = null;
       persist();
       if (els.delayPanel) els.delayPanel.hidden = true;
-      updateLockUI();
+      if (els.logBtn) els.logBtn.disabled = false;
       clearInterval(countdownTimer);
       countdownTimer = null;
       renderAll();
-      return;
     }
-    updateLockUI();
-  }, 250);
+  }, 200);
+
+  renderVapeDelayUI(false);
 }
 
-function updateLockUI() {
+function renderVapeDelayUI(forceReset) {
   const mins = clampInt(state.settings.delayMinutes, 1, 240);
-  els.delaySub.textContent = `${mins}m`;
+  if (els.delaySub) els.delaySub.textContent = `${mins}m`;
 
-  const locked = isLocked();
-  els.logBtn.disabled = locked;
+  if (forceReset) {
+    if (els.delayCountdown) els.delayCountdown.textContent = `${String(mins).padStart(2, "0")}:00`;
+    if (!isLocked()) {
+      if (els.delayPanel) els.delayPanel.hidden = true;
+      if (els.logBtn) els.logBtn.disabled = false;
+    }
+    return;
+  }
 
-  if (!locked) return;
+  if (!isLocked()) {
+    if (els.delayPanel) els.delayPanel.hidden = true;
+    if (els.logBtn) els.logBtn.disabled = false;
+    return;
+  }
 
   const msLeft = Math.max(0, state.delayUntil - nowTs());
-  els.delayCountdown.textContent = formatCountdown(msLeft);
+
+  // Fix the "stuck at 00:01" annoyance: if <= 0, clear immediately
+  if (msLeft <= 0) {
+    state.delayUntil = null;
+    persist();
+    if (els.delayPanel) els.delayPanel.hidden = true;
+    if (els.logBtn) els.logBtn.disabled = false;
+    return;
+  }
+
+  if (els.delayCountdown) els.delayCountdown.textContent = formatCountdown(msLeft);
 }
 
-/* ---------- Core actions ---------- */
+/* --------------------------- Vapes Core --------------------------- */
 
 function addHit() {
   state.hits.push(nowTs());
@@ -311,17 +431,20 @@ function undoLast() {
 
 function clearToday() {
   const todayKey = ymd(new Date());
-  state.hits = state.hits.filter(ts => ymd(new Date(ts)) !== todayKey);
+  state.hits = state.hits.filter((ts) => ymd(new Date(ts)) !== todayKey);
   persist();
   renderAll();
 }
 
 function wipeAll() {
   state.hits = [];
-  state.settings = defaultSettings();
   state.delayUntil = null;
-  state.longRange = "90d";
-  state.longSelectedKey = null;
+  state.chartSelectedDay = null;
+  state.soloDrinkDays = new Set();
+  state.vapes.longRange = "90d";
+  state.vapes.longSelectedKey = null;
+  state.activePage = "vape";
+  state.settings = defaultSettings();
 
   if (delayEndTimeout) clearTimeout(delayEndTimeout);
   delayEndTimeout = null;
@@ -332,38 +455,38 @@ function wipeAll() {
   renderAll();
 }
 
-/* ---------- Settings ---------- */
+/* --------------------------- Settings --------------------------- */
 
 function openSettings() {
-  els.goalInput.value = String(state.settings.dailyGoal ?? "");
-  els.costInput.value = String(state.settings.costPerHit ?? "");
-  els.delayMinutesInput.value = String(state.settings.delayMinutes ?? "");
-  els.quickModeToggle.checked = !!state.settings.quickMode;
-  els.offlineToggle.checked = !!state.settings.offlineCache;
+  if (els.goalInput) els.goalInput.value = String(state.settings.dailyGoal ?? "");
+  if (els.costInput) els.costInput.value = String(state.settings.costPerHit ?? "");
+  if (els.delayMinutesInput) els.delayMinutesInput.value = String(state.settings.delayMinutes ?? "");
+  if (els.quickModeToggle) els.quickModeToggle.checked = !!state.settings.quickMode;
+  if (els.offlineToggle) els.offlineToggle.checked = !!state.settings.offlineCache;
 
-  els.settingsModal.classList.add("open");
-  els.settingsModal.setAttribute("aria-hidden", "false");
+  els.settingsModal?.classList.add("open");
+  els.settingsModal?.setAttribute("aria-hidden", "false");
 }
 
 function closeSettings() {
-  els.settingsModal.classList.remove("open");
-  els.settingsModal.setAttribute("aria-hidden", "true");
+  els.settingsModal?.classList.remove("open");
+  els.settingsModal?.setAttribute("aria-hidden", "true");
 }
 
 function saveSettingsFromUI() {
-  const goal = parseInt(els.goalInput.value, 10);
-  const cost = parseFloat(els.costInput.value);
-  const delayMins = parseInt(els.delayMinutesInput.value, 10);
+  const goal = parseInt(els.goalInput?.value ?? "", 10);
+  const cost = parseFloat(els.costInput?.value ?? "");
+  const delayMins = parseInt(els.delayMinutesInput?.value ?? "", 10);
 
   state.settings.dailyGoal = Number.isFinite(goal) && goal >= 0 ? goal : defaultSettings().dailyGoal;
   state.settings.costPerHit = Number.isFinite(cost) && cost >= 0 ? cost : defaultSettings().costPerHit;
   state.settings.delayMinutes = Number.isFinite(delayMins) ? clampInt(delayMins, 1, 240) : defaultSettings().delayMinutes;
 
-  const offlineWanted = !!els.offlineToggle.checked;
+  const offlineWanted = !!els.offlineToggle?.checked;
   const prevOffline = !!state.settings.offlineCache;
   state.settings.offlineCache = offlineWanted;
 
-  state.settings.quickMode = !!els.quickModeToggle.checked;
+  state.settings.quickMode = !!els.quickModeToggle?.checked;
 
   persist();
   applyQuickMode();
@@ -380,56 +503,56 @@ function applyQuickMode() {
   document.body.classList.toggle("quick", !!state.settings.quickMode);
 }
 
-/* ---------- Rendering ---------- */
+/* --------------------------- Render --------------------------- */
 
 function renderAll() {
   renderHeader();
-  renderToday();
-  renderStats();
-  renderLog();
-  renderChart();
-  renderLongTerm();
-  syncDelayLoop();
+
+  if (state.activePage === "vape") {
+    renderToday();
+    renderStats();
+    renderLog();
+    renderChart();
+    renderLongTerm();
+    syncDelayLoop();
+  } else {
+    renderDrink();
+    renderDrinkHeatmap();
+  }
 }
 
 function renderHeader() {
   const d = new Date();
-  els.todayLabel.textContent = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  if (els.todayLabel) {
+    els.todayLabel.textContent = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  }
 }
 
 function renderToday() {
-  const today = ymd(new Date());
-  const todayHits = state.hits.filter(ts => ymd(new Date(ts)) === today);
-
-  els.todayCount.textContent = String(todayHits.length);
+  const todayKey = ymd(new Date());
+  const todayHits = state.hits.filter((ts) => ymd(new Date(ts)) === todayKey);
+  if (els.todayCount) els.todayCount.textContent = String(todayHits.length);
 
   const g = state.settings.dailyGoal;
-  els.goalLine.textContent = Number.isFinite(g) ? `Goal: ≤ ${g} hits/day` : `Goal: —`;
+  if (els.goalLine) els.goalLine.textContent = Number.isFinite(g) ? `Goal: ≤ ${g} hits/day` : `Goal: —`;
 
-  els.delaySub.textContent = `${clampInt(state.settings.delayMinutes, 1, 240)}m`;
+  renderVapeDelayUI(false);
 }
 
 function renderStats() {
   const days = lastNDays(7);
-  const counts = days.map(dayKey => countForDay(dayKey));
-  const total = counts.reduce((a,b)=>a+b,0);
+  const counts = days.map((k) => countForDay(k));
+  const total = counts.reduce((a, b) => a + b, 0);
 
-  els.weekTotal.textContent = String(total);
-  els.spendVal.textContent = dollars(total * (state.settings.costPerHit || 0));
+  if (els.weekTotal) els.weekTotal.textContent = String(total);
+  if (els.spendVal) els.spendVal.textContent = dollars(total * (state.settings.costPerHit || 0));
 
-  const goal = state.settings.dailyGoal;
-  const { streak, streakPossible } = computeStreak(goal);
-
-  els.streakVal.textContent = String(streak);
-  els.streakSub.textContent = streakPossible ? "days ≤ goal" : "days ≤ goal (start logging)";
+  const { streak, streakPossible } = computeVapeStreak(state.settings.dailyGoal);
+  if (els.streakVal) els.streakVal.textContent = String(streak);
+  if (els.streakSub) els.streakSub.textContent = streakPossible ? "days ≤ goal" : "days ≤ goal (start logging)";
 }
 
-/**
- * Streak rules:
- * - Only counts back to first day you've ever logged anything (no fake 3650).
- * - Within that range, days with 0 hits do count (that's good).
- */
-function computeStreak(goal) {
+function computeVapeStreak(goal) {
   if (!Number.isFinite(goal)) return { streak: 0, streakPossible: false };
   if (!state.hits.length) return { streak: 0, streakPossible: false };
 
@@ -445,19 +568,19 @@ function computeStreak(goal) {
     if (c <= goal) streak++;
     else break;
   }
-
   return { streak, streakPossible: true };
 }
 
 function renderLog() {
-  const today = ymd(new Date());
+  const todayKey = ymd(new Date());
   const todays = state.hits
-    .filter(ts => ymd(new Date(ts)) === today)
+    .filter((ts) => ymd(new Date(ts)) === todayKey)
     .slice()
     .reverse();
 
-  els.logMeta.textContent = `${todays.length} hit(s) logged today • total logs: ${state.hits.length}`;
+  if (els.logMeta) els.logMeta.textContent = `${todays.length} hit(s) logged today • total logs: ${state.hits.length}`;
 
+  if (!els.logList) return;
   els.logList.innerHTML = "";
   if (!todays.length) {
     els.logList.innerHTML = `<div class="muted">No hits logged today.</div>`;
@@ -488,8 +611,11 @@ function renderLog() {
   }
 }
 
+/* --------------------------- Charts (centered content) --------------------------- */
+
 function renderChart() {
   if (document.body.classList.contains("quick")) return;
+  if (!els.chart) return;
 
   const canvas = els.chart;
   const ctx = canvas.getContext("2d");
@@ -508,13 +634,14 @@ function renderChart() {
   ctx.clearRect(0, 0, cssW, cssH);
 
   const days = lastNDays(7);
-  const counts = days.map(k => countForDay(k));
+  const counts = days.map((k) => countForDay(k));
   const max = Math.max(5, ...counts);
 
   const pad = 18;
-  const chartW = cssW - pad*2;
-  const chartH = cssH - pad*2 - 10;
+  const chartW = cssW - pad * 2;
+  const chartH = cssH - pad * 2 - 10;
 
+  // Axis
   ctx.lineWidth = 1;
   ctx.strokeStyle = "rgba(255,255,255,.10)";
   ctx.beginPath();
@@ -523,13 +650,16 @@ function renderChart() {
   ctx.stroke();
 
   const barGap = 10;
-  const barW = (chartW - barGap*(days.length-1)) / days.length;
+  const barW = Math.max(8, (chartW - barGap * (days.length - 1)) / days.length);
+
+  const barsTotalW = barW * days.length + barGap * (days.length - 1);
+  const startX = pad + Math.max(0, (chartW - barsTotalW) / 2);
 
   const hitAreas = [];
 
   for (let i = 0; i < days.length; i++) {
     const c = counts[i];
-    const x = pad + i*(barW + barGap);
+    const x = startX + i * (barW + barGap);
     const h = (c / max) * chartH;
     const y = pad + (chartH - h);
 
@@ -545,11 +675,11 @@ function renderChart() {
     ctx.fillStyle = "rgba(233,238,246,.85)";
     ctx.font = "12px ui-sans-serif, system-ui";
     ctx.textAlign = "center";
-    ctx.fillText(lbl, x + barW/2, pad + chartH + 18);
+    ctx.fillText(lbl, x + barW / 2, pad + chartH + 18);
 
     ctx.fillStyle = "rgba(233,238,246,.90)";
     ctx.font = "12px ui-sans-serif, system-ui";
-    ctx.fillText(String(c), x + barW/2, Math.max(pad + 12, y - 6));
+    ctx.fillText(String(c), x + barW / 2, Math.max(pad + 12, y - 6));
 
     hitAreas.push({ day: days[i], x, y: pad, w: barW, h: chartH + 26, count: c });
   }
@@ -559,35 +689,39 @@ function renderChart() {
     const cx = ev.clientX - r.left;
     const cy = ev.clientY - r.top;
 
-    const hit = hitAreas.find(a => cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h);
+    const hit = hitAreas.find((a) => cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h);
     if (!hit) return;
 
-    state.chartSelectedDay = (state.chartSelectedDay === hit.day) ? null : hit.day;
+    state.chartSelectedDay = state.chartSelectedDay === hit.day ? null : hit.day;
 
-    if (state.chartSelectedDay) {
-      const d = fromDayKey(hit.day);
-      els.chartHint.textContent = `${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}: ${hit.count} hit(s)`;
-    } else {
-      els.chartHint.textContent = "";
+    if (els.chartHint) {
+      if (state.chartSelectedDay) {
+        const d = fromDayKey(hit.day);
+        els.chartHint.textContent = `${d.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+        })}: ${hit.count} hit(s)`;
+      } else {
+        els.chartHint.textContent = "";
+      }
     }
+
+    persist();
     renderChart();
   };
 }
 
-/* ---------- Long-term ---------- */
-
 function renderLongTerm() {
-  if (!els.longChart) return;
   if (document.body.classList.contains("quick")) return;
+  if (!els.longChart) return;
 
-  // pills active
-  if (els.rangePills) {
-    [...els.rangePills.querySelectorAll(".pill")].forEach(b => {
-      b.classList.toggle("active", b.getAttribute("data-range") === state.longRange);
-    });
-  }
+  // pills
+  els.rangePills?.querySelectorAll(".pill").forEach((b) => {
+    b.classList.toggle("active", b.getAttribute("data-range") === state.vapes.longRange);
+  });
 
-  // day map
+  // daily map
   const daily = new Map();
   for (const ts of state.hits) {
     const k = ymd(new Date(ts));
@@ -595,70 +729,68 @@ function renderLongTerm() {
   }
 
   const totalHits = state.hits.length;
-  els.lifeHits.textContent = String(totalHits);
+  els.lifeHits && (els.lifeHits.textContent = String(totalHits));
 
   const trackedDays = daily.size;
-  els.lifeDays.textContent = `${trackedDays} day(s) tracked`;
+  els.lifeDays && (els.lifeDays.textContent = `${trackedDays} day(s) tracked`);
 
   const totalSpend = totalHits * (state.settings.costPerHit || 0);
-  els.lifeSpend.textContent = dollars(totalSpend);
+  els.lifeSpend && (els.lifeSpend.textContent = dollars(totalSpend));
 
   const avgSpend = trackedDays ? totalSpend / trackedDays : 0;
-  els.lifeAvg.textContent = `${dollars(avgSpend)}/day avg`;
+  els.lifeAvg && (els.lifeAvg.textContent = `${dollars(avgSpend)}/day avg`);
 
-  // weekly reduction trend
-  const now = new Date();
-  const thisWeekKey = startOfWeekKey(now);
+  // weekly deltas
+  const thisWeekKey = startOfWeekKey(new Date());
   const lastWeekKey = shiftDayKey(thisWeekKey, -7);
 
-  const thisWeekDays = Array.from({length:7}, (_,i)=>shiftDayKey(thisWeekKey, i));
-  const lastWeekDays = Array.from({length:7}, (_,i)=>shiftDayKey(lastWeekKey, i));
+  const thisWeekDays = Array.from({ length: 7 }, (_, i) => shiftDayKey(thisWeekKey, i));
+  const lastWeekDays = Array.from({ length: 7 }, (_, i) => shiftDayKey(lastWeekKey, i));
 
   const thisWeekTotal = sumCounts(thisWeekDays, daily);
   const lastWeekTotal = sumCounts(lastWeekDays, daily);
 
-  els.wkNow.textContent = String(thisWeekTotal);
-
+  els.wkNow && (els.wkNow.textContent = String(thisWeekTotal));
   const delta = thisWeekTotal - lastWeekTotal;
-  els.wkDelta.textContent = trackedDays === 0 ? "— vs last week" :
-    `${delta === 0 ? "0" : (delta > 0 ? "+"+delta : String(delta))} vs last week`;
+  els.wkDelta &&
+    (els.wkDelta.textContent =
+      trackedDays === 0
+        ? "— vs last week"
+        : `${delta === 0 ? "0" : delta > 0 ? "+" + delta : String(delta)} vs last week`);
 
   const weekTotalAt = (wkStartKey) => {
-    const days = Array.from({length:7}, (_,i)=>shiftDayKey(wkStartKey, i));
+    const days = Array.from({ length: 7 }, (_, i) => shiftDayKey(wkStartKey, i));
     return sumCounts(days, daily);
   };
 
   const last8 = [];
-  for (let w=0; w<8; w++){
-    const wk = shiftDayKey(thisWeekKey, -7*w);
-    last8.push(weekTotalAt(wk));
-  }
-  const avgA = (last8.slice(0,4).reduce((a,b)=>a+b,0))/4;
-  const avgB = (last8.slice(4,8).reduce((a,b)=>a+b,0))/4;
+  for (let w = 0; w < 8; w++) last8.push(weekTotalAt(shiftDayKey(thisWeekKey, -7 * w)));
+  const avgA = last8.slice(0, 4).reduce((a, b) => a + b, 0) / 4;
+  const avgB = last8.slice(4, 8).reduce((a, b) => a + b, 0) / 4;
   const trend = Math.round(avgA - avgB);
-  els.wkTrend.textContent = trackedDays === 0 ? "—" : (trend === 0 ? "0" : (trend > 0 ? "+"+trend : String(trend)));
+  els.wkTrend && (els.wkTrend.textContent = trackedDays === 0 ? "—" : trend === 0 ? "0" : trend > 0 ? "+" + trend : String(trend));
 
-  // build chart data
-  const range = state.longRange || "90d";
-
+  // chart series
+  const range = state.vapes.longRange || "90d";
   let keys = [];
   let values = [];
 
   if (range === "90d") {
     const end = ymd(new Date());
-    for (let i=89; i>=0; i--){
+    for (let i = 89; i >= 0; i--) {
       const day = shiftDayKey(end, -i);
       keys.push(day);
       values.push(daily.get(day) || 0);
     }
   } else if (range === "1y") {
     const wkEnd = startOfWeekKey(new Date());
-    for (let i=51; i>=0; i--){
-      const wk = shiftDayKey(wkEnd, -7*i);
+    for (let i = 51; i >= 0; i--) {
+      const wk = shiftDayKey(wkEnd, -7 * i);
       keys.push(wk);
       values.push(weekTotalAt(wk));
     }
   } else {
+    // monthly
     if (!state.hits.length) {
       keys = [];
       values = [];
@@ -673,7 +805,7 @@ function renderLongTerm() {
       for (const [dayKey, c] of daily.entries()) {
         const d = fromDayKey(dayKey);
         const mk = monthKey(d);
-        monthly.set(mk, (monthly.get(mk)||0) + c);
+        monthly.set(mk, (monthly.get(mk) || 0) + c);
       }
 
       const cur = new Date(startM);
@@ -707,16 +839,17 @@ function drawLongChart(keys, values, range) {
   ctx.clearRect(0, 0, cssW, cssH);
 
   if (!keys.length) {
-    els.longHint.textContent = "No data yet — start logging.";
+    els.longHint && (els.longHint.textContent = "No data yet — start logging.");
     return;
   } else {
-    els.longHint.textContent = "";
+    els.longHint && (els.longHint.textContent = "");
   }
 
   const pad = 18;
-  const chartW = cssW - pad*2;
-  const chartH = cssH - pad*2 - 10;
+  const chartW = cssW - pad * 2;
+  const chartH = cssH - pad * 2 - 10;
 
+  // axis
   ctx.lineWidth = 1;
   ctx.strokeStyle = "rgba(255,255,255,.10)";
   ctx.beginPath();
@@ -727,18 +860,21 @@ function drawLongChart(keys, values, range) {
   const max = Math.max(5, ...values);
   const n = values.length;
 
-  const barGap = (range === "90d") ? 2 : 4;
-  const barW = Math.max(2, (chartW - barGap*(n-1)) / n);
+  const barGap = range === "90d" ? 2 : 4;
+  const barW = Math.max(2, (chartW - barGap * (n - 1)) / n);
+
+  const barsTotalW = barW * n + barGap * (n - 1);
+  const startX = pad + Math.max(0, (chartW - barsTotalW) / 2);
 
   const hitAreas = [];
 
-  for (let i=0; i<n; i++){
+  for (let i = 0; i < n; i++) {
     const v = values[i];
-    const x = pad + i*(barW + barGap);
+    const x = startX + i * (barW + barGap);
     const h = (v / max) * chartH;
     const y = pad + (chartH - h);
 
-    const selected = state.longSelectedKey === keys[i];
+    const selected = state.vapes.longSelectedKey === keys[i];
 
     ctx.fillStyle = selected ? "rgba(34,211,238,.95)" : "rgba(59,130,246,.65)";
     roundRect(ctx, x, y, barW, h, 6);
@@ -752,31 +888,36 @@ function drawLongChart(keys, values, range) {
     const cx = ev.clientX - r.left;
     const cy = ev.clientY - r.top;
 
-    const hit = hitAreas.find(a => cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h);
+    const hit = hitAreas.find((a) => cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h);
     if (!hit) return;
 
-    state.longSelectedKey = (state.longSelectedKey === hit.key) ? null : hit.key;
+    state.vapes.longSelectedKey = state.vapes.longSelectedKey === hit.key ? null : hit.key;
 
-    if (state.longSelectedKey) {
-      let label = String(hit.key);
+    if (els.longHint) {
+      if (state.vapes.longSelectedKey) {
+        let label = String(hit.key);
 
-      if (range === "90d") {
-        const d = fromDayKey(hit.key);
-        label = d.toLocaleDateString(undefined, { weekday:"long", month:"short", day:"numeric" });
-      } else if (range === "1y") {
-        const d = fromDayKey(hit.key);
-        const end = new Date(d);
-        end.setDate(end.getDate() + 6);
-        label = `${d.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${end.toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;
+        if (range === "90d") {
+          const d = fromDayKey(hit.key);
+          label = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+        } else if (range === "1y") {
+          const d = fromDayKey(hit.key);
+          const end = new Date(d);
+          end.setDate(end.getDate() + 6);
+          label = `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${end.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          })}`;
+        } else {
+          const [yy, mm] = hit.key.split("-");
+          const d = new Date(Number(yy), Number(mm) - 1, 1);
+          label = d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+        }
+
+        els.longHint.textContent = `${label}: ${hit.v} hit(s)`;
       } else {
-        const [yy,mm] = hit.key.split("-");
-        const d = new Date(Number(yy), Number(mm)-1, 1);
-        label = d.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+        els.longHint.textContent = "";
       }
-
-      els.longHint.textContent = `${label}: ${hit.v} hit(s)`;
-    } else {
-      els.longHint.textContent = "";
     }
 
     persist();
@@ -784,16 +925,155 @@ function drawLongChart(keys, values, range) {
   };
 }
 
-/* ---------- Export / import ---------- */
+/* --------------------------- Solo drinking --------------------------- */
+
+function toggleSoloDrinkForDay(dayKey) {
+  if (state.soloDrinkDays.has(dayKey)) state.soloDrinkDays.delete(dayKey);
+  else state.soloDrinkDays.add(dayKey);
+
+  persist();
+  renderDrink();
+  renderDrinkHeatmap();
+}
+
+function renderDrink() {
+  const todayKey = ymd(new Date());
+  const lastKey = getMostRecentSoloDrinkDay();
+
+  if (!lastKey) {
+    els.drinkDaysSince && (els.drinkDaysSince.textContent = "0");
+    els.drinkLastLabel && (els.drinkLastLabel.textContent = "Last: —");
+  } else {
+    const days = Math.max(0, daysBetween(lastKey, todayKey));
+    els.drinkDaysSince && (els.drinkDaysSince.textContent = String(days));
+    const d = fromDayKey(lastKey);
+    els.drinkLastLabel &&
+      (els.drinkLastLabel.textContent = `Last: ${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}`);
+  }
+
+  els.drink30Count && (els.drink30Count.textContent = String(countSoloDrinkLastNDays(30)));
+
+  const { currentStreak, bestStreak } = computeDrinkStreaks();
+  els.drinkStreak && (els.drinkStreak.textContent = String(currentStreak));
+  els.drinkBestStreak && (els.drinkBestStreak.textContent = String(bestStreak));
+}
+
+function renderDrinkHeatmap() {
+  const wrap = els.drinkHeatmap;
+  if (!wrap) return;
+
+  const days = lastNDays(30); // oldest..newest
+  wrap.innerHTML = "";
+
+  const todayKey = ymd(new Date());
+
+  // Align to weekday of first day (Mon=0..Sun=6)
+  const firstDate = fromDayKey(days[0]);
+  const startDow = (firstDate.getDay() + 6) % 7;
+  const padCells = startDow;
+
+  for (let i = 0; i < padCells; i++) {
+    const spacer = document.createElement("div");
+    spacer.className = "cell";
+    spacer.style.opacity = "0";
+    spacer.style.pointerEvents = "none";
+    wrap.appendChild(spacer);
+  }
+
+  for (const dayKey of days) {
+    const cell = document.createElement("div");
+    const on = state.soloDrinkDays.has(dayKey);
+    cell.className = "cell" + (on ? " on" : "") + (dayKey === todayKey ? " today" : "");
+    cell.setAttribute("data-day", dayKey);
+    cell.title = dayKey;
+
+    cell.addEventListener("click", () => {
+      toggleSoloDrinkForDay(dayKey);
+      const d = fromDayKey(dayKey);
+      if (els.drinkHeatHint) {
+        els.drinkHeatHint.textContent = `${d.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+        })}: ${state.soloDrinkDays.has(dayKey) ? "Solo drink" : "No solo drink"}`;
+      }
+    });
+
+    wrap.appendChild(cell);
+  }
+}
+
+function getMostRecentSoloDrinkDay() {
+  if (!state.soloDrinkDays.size) return null;
+  let max = null;
+  for (const k of state.soloDrinkDays) if (!max || k > max) max = k;
+  return max;
+}
+
+function countSoloDrinkLastNDays(n) {
+  const days = lastNDays(n);
+  let count = 0;
+  for (const k of days) if (state.soloDrinkDays.has(k)) count++;
+  return count;
+}
+
+function computeDrinkStreaks() {
+  const todayKey = ymd(new Date());
+  const firstKey = getEarliestAnyDayKey();
+  if (!firstKey) return { currentStreak: 0, bestStreak: 0 };
+
+  // current streak: consecutive days WITHOUT solo drinking up to today
+  let currentStreak = 0;
+  for (let i = 0; ; i++) {
+    const day = shiftDayKey(todayKey, -i);
+    if (day < firstKey) break;
+    if (state.soloDrinkDays.has(day)) break;
+    currentStreak++;
+  }
+
+  // best streak across range
+  let bestStreak = 0;
+  let run = 0;
+  const totalDays = daysBetween(firstKey, todayKey);
+  for (let i = 0; i <= totalDays; i++) {
+    const day = shiftDayKey(firstKey, i);
+    if (state.soloDrinkDays.has(day)) {
+      if (run > bestStreak) bestStreak = run;
+      run = 0;
+    } else {
+      run++;
+    }
+  }
+  if (run > bestStreak) bestStreak = run;
+
+  return { currentStreak, bestStreak };
+}
+
+function getEarliestAnyDayKey() {
+  let earliest = null;
+  if (state.hits.length) {
+    const firstV = ymd(new Date(Math.min(...state.hits)));
+    earliest = earliest ? (firstV < earliest ? firstV : earliest) : firstV;
+  }
+  for (const k of state.soloDrinkDays) {
+    earliest = earliest ? (k < earliest ? k : earliest) : k;
+  }
+  return earliest;
+}
+
+/* --------------------------- Export / Import --------------------------- */
 
 function exportData() {
   const payload = {
-    version: 4,
+    build: BUILD,
     exportedAt: new Date().toISOString(),
-    hits: state.hits,
     settings: state.settings,
+    hits: state.hits,
     delayUntil: state.delayUntil,
-    longRange: state.longRange
+    activePage: state.activePage,
+    chartSelectedDay: state.chartSelectedDay,
+    vapes: state.vapes,
+    soloDays: [...state.soloDrinkDays],
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -801,7 +1081,7 @@ function exportData() {
 
   const a = document.createElement("a");
   a.href = url;
-  a.download = `vape-counter-export-${ymd(new Date())}.json`;
+  a.download = `habit-tracker-export-${ymd(new Date())}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -817,38 +1097,90 @@ async function importData(e) {
     const text = await file.text();
     const parsed = JSON.parse(text);
 
-    if (!parsed || !Array.isArray(parsed.hits)) throw new Error("Bad file format.");
+    if (!parsed || (typeof parsed !== "object")) throw new Error("Bad file.");
 
-    state.hits = parsed.hits.filter(x => typeof x === "number");
-    state.settings = { ...defaultSettings(), ...(parsed.settings || {}) };
-    state.delayUntil = (typeof parsed.delayUntil === "number") ? parsed.delayUntil : null;
-    state.longRange = parsed.longRange || state.longRange || "90d";
-    state.longSelectedKey = null;
+    if (Array.isArray(parsed.hits)) state.hits = parsed.hits.filter((x) => typeof x === "number");
+    if (typeof parsed.delayUntil === "number") state.delayUntil = parsed.delayUntil;
+    else state.delayUntil = null;
+
+    if (parsed.settings && typeof parsed.settings === "object") {
+      state.settings = { ...defaultSettings(), ...parsed.settings };
+    } else {
+      state.settings = { ...defaultSettings() };
+    }
+
+    state.activePage = parsed.activePage === "drink" ? "drink" : "vape";
+    state.chartSelectedDay = parsed.chartSelectedDay || null;
+
+    const v = parsed.vapes || {};
+    state.vapes.longRange = v.longRange || "90d";
+    state.vapes.longSelectedKey = v.longSelectedKey || null;
+
+    const solo = Array.isArray(parsed.soloDays) ? parsed.soloDays.filter((s) => typeof s === "string") : [];
+    state.soloDrinkDays = new Set(solo);
 
     persist();
     applyQuickMode();
     syncDelayLoop();
+    setPage(state.activePage, { silent: true });
     renderAll();
+
     alert("Import complete.");
   } catch (err) {
     alert("Import failed: " + (err?.message || "Unknown error"));
   } finally {
-    els.importFile.value = "";
+    if (els.importFile) els.importFile.value = "";
   }
 }
 
-/* ---------- Helpers ---------- */
+/* --------------------------- Force Refresh --------------------------- */
+
+async function forceRefreshApp() {
+  try {
+    // Unregister SW
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const r of regs) await r.unregister();
+    }
+    // Clear Cache Storage
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      for (const k of keys) await caches.delete(k);
+    }
+  } catch {}
+  // Hard reload
+  location.reload(true);
+}
+
+/* --------------------------- Offline Cache (SW) --------------------------- */
+
+async function registerSW() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+  } catch {}
+}
+
+async function unregisterSW() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) await r.unregister();
+  } catch {}
+}
+
+/* --------------------------- Helpers --------------------------- */
 
 function ymd(date) {
   const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,"0");
-  const d = String(date.getDate()).padStart(2,"0");
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
 function fromDayKey(key) {
-  const [y,m,d] = key.split("-").map(Number);
-  return new Date(y, m-1, d);
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function shiftDayKey(key, deltaDays) {
@@ -860,7 +1192,7 @@ function shiftDayKey(key, deltaDays) {
 function lastNDays(n) {
   const out = [];
   const today = new Date();
-  for (let i = n-1; i >= 0; i--) {
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     out.push(ymd(d));
@@ -870,29 +1202,12 @@ function lastNDays(n) {
 
 function countForDay(dayKey) {
   let c = 0;
-  for (const ts of state.hits) {
-    if (ymd(new Date(ts)) === dayKey) c++;
-  }
+  for (const ts of state.hits) if (ymd(new Date(ts)) === dayKey) c++;
   return c;
 }
 
 function dollars(x) {
   return (x || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w/2, h/2);
-  ctx.beginPath();
-  ctx.moveTo(x+rr, y);
-  ctx.arcTo(x+w, y, x+w, y+h, rr);
-  ctx.arcTo(x+w, y+h, x, y+h, rr);
-  ctx.arcTo(x, y+h, x, y, rr);
-  ctx.arcTo(x, y, x+w, y, rr);
-  ctx.closePath();
-}
-
-function haptic() {
-  if (navigator.vibrate) navigator.vibrate(12);
 }
 
 function clampInt(v, lo, hi) {
@@ -905,41 +1220,44 @@ function formatCountdown(ms) {
   const totalSec = Math.ceil(ms / 1000);
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
-  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function haptic() {
+  if (navigator.vibrate) navigator.vibrate(12);
 }
 
 function startOfWeekKey(date) {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const day = (d.getDay() + 6) % 7;
+  const day = (d.getDay() + 6) % 7; // Mon=0
   d.setDate(d.getDate() - day);
   return ymd(d);
 }
 
 function monthKey(date) {
   const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,"0");
+  const m = String(date.getMonth() + 1).padStart(2, "0");
   return `${y}-${m}`;
 }
 
 function sumCounts(keys, map) {
-  return keys.reduce((acc,k)=>acc+(map.get(k)||0),0);
+  return keys.reduce((acc, k) => acc + (map.get(k) || 0), 0);
 }
 
-/* ---------- Offline cache control (service worker) ---------- */
-
-async function registerSW() {
-  if (!("serviceWorker" in navigator)) return;
-  try {
-    await navigator.serviceWorker.register("./sw.js", { scope: "./" });
-  } catch {
-    // ignore
-  }
-}
-
-async function unregisterSW() {
-  if (!("serviceWorker" in navigator)) return;
-  const regs = await navigator.serviceWorker.getRegistrations();
-  for (const r of regs) {
-    await r.unregister();
-  }
+function daysBetween(aKey, bKey) {
+  const a = fromDayKey(aKey);
+  const b = fromDayKey(bKey);
+  const ms = b.getTime() - a.getTime();
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
 }
