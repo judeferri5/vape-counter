@@ -975,6 +975,15 @@ function renderDrinkHeatmap() {
     title.className = "monthTitle";
     title.textContent = monthTitle(m.year, m.monthIndex);
 
+    const weekHeader = document.createElement("div");
+    weekHeader.className = "weekHeader";
+
+    ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach((w) => {
+  	const d = document.createElement("div");
+  	d.textContent = w;
+  	weekHeader.appendChild(d);
+    });
+
     const grid = document.createElement("div");
     grid.className = "monthGrid";
 
@@ -1025,6 +1034,7 @@ function renderDrinkHeatmap() {
     }
 
     block.appendChild(title);
+    block.appendChild(weekHeader);
     block.appendChild(grid);
     wrap.appendChild(block);
   }
