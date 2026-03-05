@@ -313,6 +313,53 @@ small{line-height:1.35}
 .cell.on{background: rgba(59,130,246,.65)}
 .cell.today{outline: 2px solid rgba(34,211,238,.35)}
 
+/* Two-month calendar layout for Drinking heatmap */
+#drinkHeatmap{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.monthBlock{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.monthTitle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color: var(--muted);
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.2px;
+}
+
+.monthGrid{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:6px;
+  padding:6px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background: rgba(255,255,255,.02);
+}
+
+.cell.empty{
+  opacity:0;
+  pointer-events:none;
+}
+
+.cell .dnum{
+  position:absolute;
+  right:6px;
+  bottom:5px;
+  font-size:10px;
+  color: rgba(233,238,246,.55);
+  font-weight:800;
+}
+
 /* QUICK MODE */
 body.quick #weeklyCard,
 body.quick #longCard,

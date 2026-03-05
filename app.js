@@ -951,7 +951,7 @@ function renderDrink() {
       (els.drinkLastLabel.textContent = `Last: ${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}`);
   }
 
-  els.drink30Count && (els.drink30Count.textContent = String(countSoloDrinkLastNDays(30)));
+  els.drink30Count && (els.drink30Count.textContent = String(countSoloDrinkLastNDays(60)));
 
   const { currentStreak, bestStreak } = computeDrinkStreaks();
   els.drinkStreak && (els.drinkStreak.textContent = String(currentStreak));
@@ -962,44 +962,71 @@ function renderDrinkHeatmap() {
   const wrap = els.drinkHeatmap;
   if (!wrap) return;
 
-  const days = lastNDays(30); // oldest..newest
   wrap.innerHTML = "";
 
   const todayKey = ymd(new Date());
 
-  // Align to weekday of first day (Mon=0..Sun=6)
-  const firstDate = fromDayKey(days[0]);
-  const startDow = (firstDate.getDay() + 6) % 7;
-  const padCells = startDow;
+  const months = getTwoMonths(); // [{year, monthIndex}, {year, monthIndex}]
+  for (const m of months) {
+    const block = document.createElement("div");
+    block.className = "monthBlock";
 
-  for (let i = 0; i < padCells; i++) {
-    const spacer = document.createElement("div");
-    spacer.className = "cell";
-    spacer.style.opacity = "0";
-    spacer.style.pointerEvents = "none";
-    wrap.appendChild(spacer);
-  }
+    const title = document.createElement("div");
+    title.className = "monthTitle";
+    title.textContent = monthTitle(m.year, m.monthIndex);
 
-  for (const dayKey of days) {
-    const cell = document.createElement("div");
-    const on = state.soloDrinkDays.has(dayKey);
-    cell.className = "cell" + (on ? " on" : "") + (dayKey === todayKey ? " today" : "");
-    cell.setAttribute("data-day", dayKey);
-    cell.title = dayKey;
+    const grid = document.createElement("div");
+    grid.className = "monthGrid";
 
-    cell.addEventListener("click", () => {
-      toggleSoloDrinkForDay(dayKey);
-      const d = fromDayKey(dayKey);
-      if (els.drinkHeatHint) {
-        els.drinkHeatHint.textContent = `${d.toLocaleDateString(undefined, {
-          weekday: "long",
-          month: "short",
-          day: "numeric",
-        })}: ${state.soloDrinkDays.has(dayKey) ? "Solo drink" : "No solo drink"}`;
+    // Monday-first calendar:
+    // startDow: Mon=0..Sun=6
+    const first = new Date(m.year, m.monthIndex, 1);
+    const daysInMonth = new Date(m.year, m.monthIndex + 1, 0).getDate();
+    const startDow = (first.getDay() + 6) % 7;
+
+    // Fill 6 weeks (42 cells) for consistent calendar shape
+    for (let i = 0; i < 42; i++) {
+      const dayNum = i - startDow + 1;
+
+      // Outside month → blank cell
+      if (dayNum < 1 || dayNum > daysInMonth) {
+        const spacer = document.createElement("div");
+        spacer.className = "cell empty";
+        grid.appendChild(spacer);
+        continue;
       }
-    });
 
-    wrap.appendChild(cell);
+      const dayKey = ymd(new Date(m.year, m.monthIndex, dayNum));
+      const on = state.soloDrinkDays.has(dayKey);
+
+      const cell = document.createElement("div");
+      cell.className = "cell" + (on ? " on" : "") + (dayKey === todayKey ? " today" : "");
+      cell.setAttribute("data-day", dayKey);
+      cell.title = dayKey;
+
+      const n = document.createElement("span");
+      n.className = "dnum";
+      n.textContent = String(dayNum);
+      cell.appendChild(n);
+
+      cell.addEventListener("click", () => {
+        toggleSoloDrinkForDay(dayKey);
+        const d = fromDayKey(dayKey);
+        if (els.drinkHeatHint) {
+          els.drinkHeatHint.textContent = `${d.toLocaleDateString(undefined, {
+            weekday: "long",
+            month: "short",
+            day: "numeric",
+          })}: ${state.soloDrinkDays.has(dayKey) ? "Solo Drinking / Bad Blackout" : "None"}`;
+        }
+      });
+
+      grid.appendChild(cell);
+    }
+
+    block.appendChild(title);
+    block.appendChild(grid);
+    wrap.appendChild(block);
   }
 }
 
@@ -1260,4 +1287,21 @@ function daysBetween(aKey, bKey) {
   const b = fromDayKey(bKey);
   const ms = b.getTime() - a.getTime();
   return Math.floor(ms / (24 * 60 * 60 * 1000));
+}
+
+function getTwoMonths() {
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth();
+
+  const prev = new Date(curY, curM - 1, 1);
+  return [
+    { year: prev.getFullYear(), monthIndex: prev.getMonth() },
+    { year: curY, monthIndex: curM }
+  ];
+}
+
+function monthTitle(year, monthIndex) {
+  const d = new Date(year, monthIndex, 1);
+  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
