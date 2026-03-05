@@ -19,27 +19,27 @@
 
 <body>
   <header class="top">
-    <div class="title">
+    <div class="titleRow">
       <h1 id="appTitle">Habit Tracker</h1>
       <div class="sub" id="todayLabel">Today</div>
     </div>
 
-    <div class="row">
+    <div class="controlRow">
       <div class="tabs" role="tablist" aria-label="Habits">
         <button class="tab active" id="tabVape" role="tab" aria-selected="true">Vapes</button>
         <button class="tab" id="tabDrink" role="tab" aria-selected="false">Drinking</button>
       </div>
 
-      <button class="ghost" id="toggleQuickBtn" aria-label="Toggle quick mode">⚡</button>
-      <button class="ghost" id="openSettingsBtn" aria-label="Open settings">⚙︎</button>
+      <div class="hdrBtns">
+        <button class="ghost iconBtn" id="toggleQuickBtn" aria-label="Toggle quick mode">⚡</button>
+        <button class="ghost iconBtn" id="openSettingsBtn" aria-label="Open settings">⚙︎</button>
+      </div>
     </div>
   </header>
 
   <main class="wrap">
-
     <!-- ===================== VAPES ===================== -->
     <section id="pageVape" class="page active" aria-label="Vapes page">
-
       <section class="card hero">
         <div class="heroRow">
           <div>
@@ -156,7 +156,7 @@
       </section>
     </section>
 
-    <!-- ===================== SOLO DRINKING ===================== -->
+    <!-- ===================== DRINKING ===================== -->
     <section id="pageDrink" class="page" aria-label="Solo drinking page">
       <section class="card hero">
         <div class="heroRow">
@@ -167,11 +167,11 @@
           </div>
 
           <div class="heroBtns">
-            <button class="delay" id="drinkMarkYesterdayBtn" aria-label="Toggle solo drink yesterday">
+            <button class="delay" id="drinkMarkYesterdayBtn" aria-label="Toggle yesterday">
               Toggle <span class="delaySub">Yesterday</span>
             </button>
 
-            <button class="plus" id="drinkToggleTodayBtn" aria-label="Toggle solo drink today">
+            <button class="plus" id="drinkToggleTodayBtn" aria-label="Toggle today">
               Toggle <span class="delaySub">Today</span>
             </button>
           </div>
@@ -203,11 +203,8 @@
         </div>
 
         <div class="heatWrap">
-          <div class="heatLegend">
-            <span class="muted">Less</span>
-            <span class="dot off"></span>
-            <span class="dot on"></span>
-            <span class="muted">More</span>
+          <div class="dowRow" aria-hidden="true">
+            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
           </div>
 
           <div id="drinkHeatmap" class="heatmap" aria-label="Solo drinking heatmap"></div>
@@ -215,7 +212,6 @@
         </div>
       </section>
     </section>
-
   </main>
 
   <!-- Settings modal -->
@@ -223,7 +219,7 @@
     <div class="sheet">
       <div class="sheetHead">
         <h3>Settings</h3>
-        <button class="ghost" id="closeSettingsBtn" aria-label="Close settings">✕</button>
+        <button class="ghost iconBtn" id="closeSettingsBtn" aria-label="Close settings">✕</button>
       </div>
 
       <div class="form">

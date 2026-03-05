@@ -1,11 +1,9 @@
-/* Habit Tracker — Vapes + Solo Drinking (local-only storage) */
-
-const BUILD = "2026-03-04b";
+/* Habit Tracker — Vapes + Drinking (local-only storage) */
+const BUILD = "2026-03-04c";
 const STORAGE_KEY = "habitTracker.v1";
 
 const $ = (id) => document.getElementById(id);
 
-/* --------------------------- DOM --------------------------- */
 const els = {
   todayLabel: $("todayLabel"),
   appTitle: $("appTitle"),
@@ -81,12 +79,20 @@ const els = {
 let countdownTimer = null;
 let delayEndTimeout = null;
 
-/* --------------------------- State --------------------------- */
 const state = loadState();
 
-/* --------------------------- Init --------------------------- */
 init();
 renderAll();
+
+function defaultSettings() {
+  return {
+    dailyGoal: 30,
+    costPerHit: 0.03,
+    delayMinutes: 10,
+    quickMode: false,
+    offlineCache: false,
+  };
+}
 
 function init() {
   if (els.buildLabel) els.buildLabel.textContent = `Build: ${BUILD}`;
@@ -126,11 +132,11 @@ function init() {
   els.importFile?.addEventListener("change", importData);
 
   els.wipeAllBtn?.addEventListener("click", () => {
-    if (!confirm("Wipe ALL data (vapes + solo drinking)? This cannot be undone.")) return;
+    if (!confirm("Wipe ALL data (vapes + drinking)? This cannot be undone.")) return;
     wipeAll();
   });
 
-  // Solo drinking
+  // Drinking
   els.drinkToggleTodayBtn?.addEventListener("click", () => {
     toggleSoloDrinkForDay(ymd(new Date()));
     haptic();
@@ -212,16 +218,6 @@ function init() {
 
   applyQuickMode();
   syncDelayLoop();
-}
-
-function defaultSettings() {
-  return {
-    dailyGoal: 30,
-    costPerHit: 0.03,
-    delayMinutes: 10,
-    quickMode: false,
-    offlineCache: false,
-  };
 }
 
 /* --------------------------- Storage --------------------------- */
@@ -314,13 +310,13 @@ function startDelay() {
   state.delayUntil = nowTs() + mins * 60 * 1000;
   persist();
 
-  // Guarantee a resync at end time even if iOS throttles intervals
+  // Guaranteed resync at end time (intervals can be throttled on iOS)
   if (delayEndTimeout) clearTimeout(delayEndTimeout);
   const msLeft = Math.max(0, state.delayUntil - nowTs());
   delayEndTimeout = setTimeout(() => {
     syncDelayLoop();
     renderAll();
-  }, msLeft + 100);
+  }, msLeft + 200);
 
   syncDelayLoop();
   renderAll();
@@ -333,11 +329,11 @@ function cancelDelay() {
   delayEndTimeout = null;
 
   persist();
-  syncDelayLoop();
 
-  // Reset display back to configured delay length (even though panel hides)
+  // Reset visuals to configured delay time so Cancel “feels” like a reset
   renderVapeDelayUI(true);
 
+  syncDelayLoop();
   renderAll();
 }
 
@@ -362,7 +358,7 @@ function syncDelayLoop() {
   if (els.delayPanel) els.delayPanel.hidden = false;
   if (els.logBtn) els.logBtn.disabled = true;
 
-  // High-frequency tick; if it stalls, focus/pageshow handlers fix it
+  // Tick
   countdownTimer = setInterval(() => {
     renderVapeDelayUI(false);
 
@@ -387,10 +383,8 @@ function renderVapeDelayUI(forceReset) {
 
   if (forceReset) {
     if (els.delayCountdown) els.delayCountdown.textContent = `${String(mins).padStart(2, "0")}:00`;
-    if (!isLocked()) {
-      if (els.delayPanel) els.delayPanel.hidden = true;
-      if (els.logBtn) els.logBtn.disabled = false;
-    }
+    if (els.delayPanel) els.delayPanel.hidden = true;
+    if (els.logBtn) els.logBtn.disabled = false;
     return;
   }
 
@@ -402,7 +396,7 @@ function renderVapeDelayUI(forceReset) {
 
   const msLeft = Math.max(0, state.delayUntil - nowTs());
 
-  // Fix the "stuck at 00:01" annoyance: if <= 0, clear immediately
+  // Kill the “stuck at 00:01” case
   if (msLeft <= 0) {
     state.delayUntil = null;
     persist();
@@ -582,361 +576,249 @@ function renderLog() {
 
   if (!els.logList) return;
   els.logList.innerHTML = "";
+
   if (!todays.length) {
-    els.logList.innerHTML = `<div class="muted">No hits logged today.</div>`;
+    els.logList.innerHTML = `<div class="muted">No hits yet today.</div>`;
     return;
   }
 
-  for (const ts of todays.slice(0, 60)) {
+  for (const ts of todays) {
     const d = new Date(ts);
-    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     const item = document.createElement("div");
     item.className = "item";
-    item.innerHTML = `
-      <div class="left">
-        <div class="t">${time}</div>
-        <div class="s">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-      </div>
-      <div class="s">${new Date(ts).toLocaleTimeString([], { second: "2-digit" })}</div>
-    `;
-    els.logList.appendChild(item);
-  }
 
-  if (todays.length > 60) {
-    const more = document.createElement("div");
-    more.className = "muted";
-    more.style.marginTop = "8px";
-    more.textContent = `Showing latest 60 of ${todays.length} today.`;
-    els.logList.appendChild(more);
+    const left = document.createElement("div");
+    left.className = "left";
+
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+    const s = document.createElement("div");
+    s.className = "s";
+    s.textContent = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+    left.appendChild(t);
+    left.appendChild(s);
+
+    const right = document.createElement("div");
+    right.className = "muted";
+    right.textContent = String(getMinutesSince(ts));
+
+    item.appendChild(left);
+    item.appendChild(right);
+    els.logList.appendChild(item);
   }
 }
 
-/* --------------------------- Charts (centered content) --------------------------- */
+/* --------------------------- Charts (centered) --------------------------- */
 
 function renderChart() {
-  if (document.body.classList.contains("quick")) return;
   if (!els.chart) return;
+  const days = lastNDays(7); // oldest -> newest
+  const vals = days.map((k) => countForDay(k));
+  const labels = days.map((k) => dayLabel(k));
 
-  const canvas = els.chart;
-  const ctx = canvas.getContext("2d");
-
-  const dpr = window.devicePixelRatio || 1;
-  const container = canvas.parentElement;
-  const cs = getComputedStyle(container);
-  const padL = parseFloat(cs.paddingLeft) || 0;
-  const padR = parseFloat(cs.paddingRight) || 0;
-  const cssW = Math.max(320, Math.floor(container.clientWidth - padL - padR));
-  const cssH = 240;
-
-  canvas.style.width = cssW + "px";
-  canvas.style.height = cssH + "px";
-  canvas.width = Math.floor(cssW * dpr);
-  canvas.height = Math.floor(cssH * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  ctx.clearRect(0, 0, cssW, cssH);
-
-  const days = lastNDays(7);
-  const counts = days.map((k) => countForDay(k));
-  const max = Math.max(5, ...counts);
-
-  const pad = 18;
-  const chartW = cssW - pad * 2;
-  const chartH = cssH - pad * 2 - 10;
-
-  // Axis
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "rgba(255,255,255,.10)";
-  ctx.beginPath();
-  ctx.moveTo(pad, pad + chartH);
-  ctx.lineTo(pad + chartW, pad + chartH);
-  ctx.stroke();
-
-  const barGap = 10;
-  const barW = Math.max(8, (chartW - barGap * (days.length - 1)) / days.length);
-
-  const barsTotalW = barW * days.length + barGap * (days.length - 1);
-  const startX = pad + Math.max(0, (chartW - barsTotalW) / 2);
-
-  const hitAreas = [];
-
-  for (let i = 0; i < days.length; i++) {
-    const c = counts[i];
-    const x = startX + i * (barW + barGap);
-    const h = (c / max) * chartH;
-    const y = pad + (chartH - h);
-
-    const selected = state.chartSelectedDay === days[i];
-
-    ctx.fillStyle = selected ? "rgba(34,211,238,.95)" : "rgba(59,130,246,.75)";
-    roundRect(ctx, x, y, barW, h, 10);
-    ctx.fill();
-
-    const d = fromDayKey(days[i]);
-    const lbl = d.toLocaleDateString(undefined, { weekday: "short" });
-
-    ctx.fillStyle = "rgba(233,238,246,.85)";
-    ctx.font = "12px ui-sans-serif, system-ui";
-    ctx.textAlign = "center";
-    ctx.fillText(lbl, x + barW / 2, pad + chartH + 18);
-
-    ctx.fillStyle = "rgba(233,238,246,.90)";
-    ctx.font = "12px ui-sans-serif, system-ui";
-    ctx.fillText(String(c), x + barW / 2, Math.max(pad + 12, y - 6));
-
-    hitAreas.push({ day: days[i], x, y: pad, w: barW, h: chartH + 26, count: c });
-  }
-
-  canvas.onclick = (ev) => {
-    const r = canvas.getBoundingClientRect();
-    const cx = ev.clientX - r.left;
-    const cy = ev.clientY - r.top;
-
-    const hit = hitAreas.find((a) => cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h);
-    if (!hit) return;
-
-    state.chartSelectedDay = state.chartSelectedDay === hit.day ? null : hit.day;
-
-    if (els.chartHint) {
-      if (state.chartSelectedDay) {
-        const d = fromDayKey(hit.day);
+  drawBarChart(els.chart, labels, vals, {
+    highlightIndex: days.indexOf(state.chartSelectedDay),
+    onBarTap: (i) => {
+      const key = days[i];
+      state.chartSelectedDay = key;
+      persist();
+      const d = fromDayKey(key);
+      if (els.chartHint) {
         els.chartHint.textContent = `${d.toLocaleDateString(undefined, {
           weekday: "long",
           month: "short",
           day: "numeric",
-        })}: ${hit.count} hit(s)`;
-      } else {
-        els.chartHint.textContent = "";
+        })}: ${vals[i]} hit(s)`;
       }
-    }
+      renderChart();
+    },
+  });
 
-    persist();
-    renderChart();
-  };
+  if (els.chartHint && !state.chartSelectedDay) els.chartHint.textContent = "";
 }
 
 function renderLongTerm() {
-  if (document.body.classList.contains("quick")) return;
   if (!els.longChart) return;
 
-  // pills
-  els.rangePills?.querySelectorAll(".pill").forEach((b) => {
-    b.classList.toggle("active", b.getAttribute("data-range") === state.vapes.longRange);
+  const range = state.vapes.longRange || "90d";
+  const days = range === "90d" ? lastNDays(90) : range === "1y" ? lastNDays(365) : allDaysFromHits();
+  const vals = days.map((k) => countForDay(k));
+
+  // labels: keep sparse for long charts
+  const labels = days.map((k, i) => {
+    if (range === "all") {
+      return i % Math.max(1, Math.floor(days.length / 6)) === 0 ? shortMD(k) : "";
+    }
+    if (range === "1y") return i % 30 === 0 ? shortMD(k) : "";
+    return i % 15 === 0 ? shortMD(k) : "";
   });
 
-  // daily map
-  const daily = new Map();
-  for (const ts of state.hits) {
-    const k = ymd(new Date(ts));
-    daily.set(k, (daily.get(k) || 0) + 1);
+  drawBarChart(els.longChart, labels, vals, {
+    highlightIndex: days.indexOf(state.vapes.longSelectedKey),
+    onBarTap: (i) => {
+      const key = days[i];
+      state.vapes.longSelectedKey = key;
+      persist();
+      const d = fromDayKey(key);
+      if (els.longHint) {
+        els.longHint.textContent = `${d.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+        })}: ${vals[i]} hit(s)`;
+      }
+      renderLongTerm();
+    },
+  });
+
+  // pills UI
+  if (els.rangePills) {
+    [...els.rangePills.querySelectorAll(".pill")].forEach((b) => {
+      b.classList.toggle("active", (b.getAttribute("data-range") || "") === range);
+    });
   }
 
-  const totalHits = state.hits.length;
-  els.lifeHits && (els.lifeHits.textContent = String(totalHits));
+  // Lifetime stats
+  const lifeHits = state.hits.length;
+  const trackedDays = allDaysFromHits().length;
+  const lifeSpend = lifeHits * (state.settings.costPerHit || 0);
+  const avgPerDay = trackedDays ? lifeSpend / trackedDays : 0;
 
-  const trackedDays = daily.size;
-  els.lifeDays && (els.lifeDays.textContent = `${trackedDays} day(s) tracked`);
+  if (els.lifeHits) els.lifeHits.textContent = String(lifeHits);
+  if (els.lifeDays) els.lifeDays.textContent = `${trackedDays} day(s) tracked`;
+  if (els.lifeSpend) els.lifeSpend.textContent = dollars(lifeSpend);
+  if (els.lifeAvg) els.lifeAvg.textContent = `${dollars(avgPerDay)}/day avg`;
 
-  const totalSpend = totalHits * (state.settings.costPerHit || 0);
-  els.lifeSpend && (els.lifeSpend.textContent = dollars(totalSpend));
+  // Week comparisons
+  const thisWeek = lastNDays(7).reduce((a, k) => a + countForDay(k), 0);
+  const prevWeekDays = lastNDaysFrom(7, shiftDayKey(ymd(new Date()), -7));
+  const lastWeek = prevWeekDays.reduce((a, k) => a + countForDay(k), 0);
 
-  const avgSpend = trackedDays ? totalSpend / trackedDays : 0;
-  els.lifeAvg && (els.lifeAvg.textContent = `${dollars(avgSpend)}/day avg`);
+  if (els.wkNow) els.wkNow.textContent = String(thisWeek);
+  if (els.wkDelta) els.wkDelta.textContent = `${fmtSigned(thisWeek - lastWeek)} vs last week`;
 
-  // weekly deltas
-  const thisWeekKey = startOfWeekKey(new Date());
-  const lastWeekKey = shiftDayKey(thisWeekKey, -7);
+  // 4-week avg change (compare last 4 weeks vs previous 4 weeks)
+  const w1 = sumDays(lastNDays(28));
+  const w0 = sumDays(lastNDaysFrom(28, shiftDayKey(ymd(new Date()), -28)));
+  const avgChange = (w1 - w0) / 4;
 
-  const thisWeekDays = Array.from({ length: 7 }, (_, i) => shiftDayKey(thisWeekKey, i));
-  const lastWeekDays = Array.from({ length: 7 }, (_, i) => shiftDayKey(lastWeekKey, i));
-
-  const thisWeekTotal = sumCounts(thisWeekDays, daily);
-  const lastWeekTotal = sumCounts(lastWeekDays, daily);
-
-  els.wkNow && (els.wkNow.textContent = String(thisWeekTotal));
-  const delta = thisWeekTotal - lastWeekTotal;
-  els.wkDelta &&
-    (els.wkDelta.textContent =
-      trackedDays === 0
-        ? "— vs last week"
-        : `${delta === 0 ? "0" : delta > 0 ? "+" + delta : String(delta)} vs last week`);
-
-  const weekTotalAt = (wkStartKey) => {
-    const days = Array.from({ length: 7 }, (_, i) => shiftDayKey(wkStartKey, i));
-    return sumCounts(days, daily);
-  };
-
-  const last8 = [];
-  for (let w = 0; w < 8; w++) last8.push(weekTotalAt(shiftDayKey(thisWeekKey, -7 * w)));
-  const avgA = last8.slice(0, 4).reduce((a, b) => a + b, 0) / 4;
-  const avgB = last8.slice(4, 8).reduce((a, b) => a + b, 0) / 4;
-  const trend = Math.round(avgA - avgB);
-  els.wkTrend && (els.wkTrend.textContent = trackedDays === 0 ? "—" : trend === 0 ? "0" : trend > 0 ? "+" + trend : String(trend));
-
-  // chart series
-  const range = state.vapes.longRange || "90d";
-  let keys = [];
-  let values = [];
-
-  if (range === "90d") {
-    const end = ymd(new Date());
-    for (let i = 89; i >= 0; i--) {
-      const day = shiftDayKey(end, -i);
-      keys.push(day);
-      values.push(daily.get(day) || 0);
-    }
-  } else if (range === "1y") {
-    const wkEnd = startOfWeekKey(new Date());
-    for (let i = 51; i >= 0; i--) {
-      const wk = shiftDayKey(wkEnd, -7 * i);
-      keys.push(wk);
-      values.push(weekTotalAt(wk));
-    }
-  } else {
-    // monthly
-    if (!state.hits.length) {
-      keys = [];
-      values = [];
-    } else {
-      const minTs = Math.min(...state.hits);
-      const start = new Date(minTs);
-      const startM = new Date(start.getFullYear(), start.getMonth(), 1);
-      const end = new Date();
-      const endM = new Date(end.getFullYear(), end.getMonth(), 1);
-
-      const monthly = new Map();
-      for (const [dayKey, c] of daily.entries()) {
-        const d = fromDayKey(dayKey);
-        const mk = monthKey(d);
-        monthly.set(mk, (monthly.get(mk) || 0) + c);
-      }
-
-      const cur = new Date(startM);
-      while (cur <= endM) {
-        const mk = monthKey(cur);
-        keys.push(mk);
-        values.push(monthly.get(mk) || 0);
-        cur.setMonth(cur.getMonth() + 1);
-      }
-    }
-  }
-
-  drawLongChart(keys, values, range);
+  if (els.wkTrend) els.wkTrend.textContent = `${fmtSigned(round1(avgChange))}`;
 }
 
-function drawLongChart(keys, values, range) {
-  const canvas = els.longChart;
+function drawBarChart(canvas, labels, values, opts = {}) {
   const ctx = canvas.getContext("2d");
+  const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
 
-  const dpr = window.devicePixelRatio || 1;
-  const container = canvas.parentElement;
-  const cs = getComputedStyle(container);
-  const padL = parseFloat(cs.paddingLeft) || 0;
-  const padR = parseFloat(cs.paddingRight) || 0;
-  const cssW = Math.max(320, Math.floor(container.clientWidth - padL - padR));
-  const cssH = 240;
+  // CSS size
+  const cssW = canvas.clientWidth || 600;
+  const cssH = canvas.height || 240;
 
-  canvas.style.width = cssW + "px";
-  canvas.style.height = cssH + "px";
+  // Real pixel buffer
   canvas.width = Math.floor(cssW * dpr);
   canvas.height = Math.floor(cssH * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  ctx.clearRect(0, 0, cssW, cssH);
+  const w = cssW;
+  const h = cssH;
 
-  if (!keys.length) {
-    els.longHint && (els.longHint.textContent = "No data yet — start logging.");
-    return;
-  } else {
-    els.longHint && (els.longHint.textContent = "");
-  }
+  // Clear
+  ctx.clearRect(0, 0, w, h);
 
-  const pad = 18;
-  const chartW = cssW - pad * 2;
-  const chartH = cssH - pad * 2 - 10;
+  // Layout (symmetrical padding => centered plot)
+  const padL = 28;
+  const padR = 28;
+  const padT = 16;
+  const padB = 34;
 
-  // axis
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  // Baseline
+  ctx.strokeStyle = "rgba(255,255,255,.12)";
   ctx.lineWidth = 1;
-  ctx.strokeStyle = "rgba(255,255,255,.10)";
   ctx.beginPath();
-  ctx.moveTo(pad, pad + chartH);
-  ctx.lineTo(pad + chartW, pad + chartH);
+  ctx.moveTo(padL, padT + plotH);
+  ctx.lineTo(padL + plotW, padT + plotH);
   ctx.stroke();
 
-  const max = Math.max(5, ...values);
+  const maxV = Math.max(1, ...values);
   const n = values.length;
+  const gap = Math.min(14, plotW / (n * 2));
+  const barW = (plotW - gap * (n - 1)) / n;
 
-  const barGap = range === "90d" ? 2 : 4;
-  const barW = Math.max(2, (chartW - barGap * (n - 1)) / n);
-
-  const barsTotalW = barW * n + barGap * (n - 1);
-  const startX = pad + Math.max(0, (chartW - barsTotalW) / 2);
-
-  const hitAreas = [];
-
+  // Bars
+  const barRects = [];
   for (let i = 0; i < n; i++) {
     const v = values[i];
-    const x = startX + i * (barW + barGap);
-    const h = (v / max) * chartH;
-    const y = pad + (chartH - h);
+    const bh = Math.round((v / maxV) * (plotH - 10));
+    const x = padL + i * (barW + gap);
+    const y = padT + plotH - bh;
 
-    const selected = state.vapes.longSelectedKey === keys[i];
+    const active = (opts.highlightIndex === i);
 
-    ctx.fillStyle = selected ? "rgba(34,211,238,.95)" : "rgba(59,130,246,.65)";
-    roundRect(ctx, x, y, barW, h, 6);
+    ctx.fillStyle = active ? "rgba(34,211,238,.90)" : "rgba(59,130,246,.80)";
+    const r = 12;
+    roundRect(ctx, x, y, barW, bh, r);
     ctx.fill();
 
-    hitAreas.push({ key: keys[i], v, x, y: pad, w: barW, h: chartH + 26 });
+    // value above bar (small)
+    ctx.fillStyle = "rgba(233,238,246,.70)";
+    ctx.font = "700 12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(String(v), x + barW / 2, padT + plotH - bh - 6);
+
+    barRects.push({ x, y: padT, w: barW, h: plotH, i });
   }
 
+  // X labels (centered)
+  ctx.fillStyle = "rgba(233,238,246,.70)";
+  ctx.font = "700 13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+  ctx.textAlign = "center";
+  for (let i = 0; i < n; i++) {
+    const x = padL + i * (barW + gap) + barW / 2;
+    const lab = labels[i] || "";
+    ctx.fillText(lab, x, padT + plotH + 22);
+  }
+
+  // Click/tap handler
   canvas.onclick = (ev) => {
-    const r = canvas.getBoundingClientRect();
-    const cx = ev.clientX - r.left;
-    const cy = ev.clientY - r.top;
+    if (!opts.onBarTap) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
 
-    const hit = hitAreas.find((a) => cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h);
-    if (!hit) return;
-
-    state.vapes.longSelectedKey = state.vapes.longSelectedKey === hit.key ? null : hit.key;
-
-    if (els.longHint) {
-      if (state.vapes.longSelectedKey) {
-        let label = String(hit.key);
-
-        if (range === "90d") {
-          const d = fromDayKey(hit.key);
-          label = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-        } else if (range === "1y") {
-          const d = fromDayKey(hit.key);
-          const end = new Date(d);
-          end.setDate(end.getDate() + 6);
-          label = `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${end.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-          })}`;
-        } else {
-          const [yy, mm] = hit.key.split("-");
-          const d = new Date(Number(yy), Number(mm) - 1, 1);
-          label = d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-        }
-
-        els.longHint.textContent = `${label}: ${hit.v} hit(s)`;
-      } else {
-        els.longHint.textContent = "";
+    for (const b of barRects) {
+      if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+        opts.onBarTap(b.i);
+        return;
       }
     }
-
-    persist();
-    renderLongTerm();
   };
 }
 
-/* --------------------------- Solo drinking --------------------------- */
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function sumDays(dayKeys) {
+  return dayKeys.reduce((a, k) => a + countForDay(k), 0);
+}
+
+/* --------------------------- Drinking --------------------------- */
 
 function toggleSoloDrinkForDay(dayKey) {
   if (state.soloDrinkDays.has(dayKey)) state.soloDrinkDays.delete(dayKey);
   else state.soloDrinkDays.add(dayKey);
-
   persist();
   renderDrink();
   renderDrinkHeatmap();
@@ -944,24 +826,70 @@ function toggleSoloDrinkForDay(dayKey) {
 
 function renderDrink() {
   const todayKey = ymd(new Date());
-  const lastKey = getMostRecentSoloDrinkDay();
 
-  if (!lastKey) {
-    els.drinkDaysSince && (els.drinkDaysSince.textContent = "0");
-    els.drinkLastLabel && (els.drinkLastLabel.textContent = "Last: —");
-  } else {
-    const days = Math.max(0, daysBetween(lastKey, todayKey));
-    els.drinkDaysSince && (els.drinkDaysSince.textContent = String(days));
-    const d = fromDayKey(lastKey);
-    els.drinkLastLabel &&
-      (els.drinkLastLabel.textContent = `Last: ${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}`);
+  // Find most recent drinking day
+  const days = [...state.soloDrinkDays].sort();
+  const lastKey = days.length ? days[days.length - 1] : null;
+
+  if (els.drinkLastLabel) {
+    els.drinkLastLabel.textContent = lastKey ? `Last: ${fromDayKey(lastKey).toLocaleDateString()}` : "Last: —";
   }
 
-  els.drink30Count && (els.drink30Count.textContent = String(countSoloDrinkLastNDays(60)));
+  const since = lastKey ? daysBetween(fromDayKey(lastKey), new Date()) : 0;
+  if (els.drinkDaysSince) els.drinkDaysSince.textContent = String(lastKey ? since : 0);
 
-  const { currentStreak, bestStreak } = computeDrinkStreaks();
-  els.drinkStreak && (els.drinkStreak.textContent = String(currentStreak));
-  els.drinkBestStreak && (els.drinkBestStreak.textContent = String(bestStreak));
+  // streak = consecutive days with NO drinking ending today
+  const streak = computeNoDrinkStreak(todayKey);
+  if (els.drinkStreak) els.drinkStreak.textContent = String(streak);
+
+  // last 60 days count
+  const last60 = lastNDays(60);
+  const count60 = last60.reduce((a, k) => a + (state.soloDrinkDays.has(k) ? 1 : 0), 0);
+  if (els.drink30Count) els.drink30Count.textContent = String(count60);
+
+  // best streak all time
+  const best = computeBestNoDrinkStreak();
+  if (els.drinkBestStreak) els.drinkBestStreak.textContent = String(best);
+
+  if (els.drinkHeatHint) {
+    const d = fromDayKey(todayKey);
+    els.drinkHeatHint.textContent = `${d.toLocaleDateString(undefined, { weekday:"long", month:"short", day:"numeric" })}: ${
+      state.soloDrinkDays.has(todayKey) ? "Solo Drink / Bad Blackout" : "None"
+    }`;
+  }
+}
+
+function computeNoDrinkStreak(todayKey) {
+  let s = 0;
+  for (let i = 0; ; i++) {
+    const key = shiftDayKey(todayKey, -i);
+    if (state.soloDrinkDays.has(key)) break;
+    s++;
+    // stop if we go too far back without any data (cap)
+    if (i > 3650) break;
+  }
+  return s;
+}
+
+function computeBestNoDrinkStreak() {
+  // Compute across a reasonable window: from earliest drink mark (or today - 5y) to today.
+  const todayKey = ymd(new Date());
+  const marks = [...state.soloDrinkDays].sort();
+  const startKey = marks.length ? shiftDayKey(marks[0], -1) : shiftDayKey(todayKey, -365);
+  const all = allDaysBetween(startKey, todayKey);
+
+  let best = 0;
+  let cur = 0;
+  for (const k of all) {
+    if (state.soloDrinkDays.has(k)) {
+      best = Math.max(best, cur);
+      cur = 0;
+    } else {
+      cur++;
+    }
+  }
+  best = Math.max(best, cur);
+  return best;
 }
 
 function renderDrinkHeatmap() {
@@ -981,29 +909,19 @@ function renderDrinkHeatmap() {
     title.className = "monthTitle";
     title.textContent = monthTitle(m.year, m.monthIndex);
 
-    const weekHeader = document.createElement("div");
-    weekHeader.className = "weekHeader";
-
-    ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach((w) => {
-  	const d = document.createElement("div");
-  	d.textContent = w;
-  	weekHeader.appendChild(d);
-    });
-
     const grid = document.createElement("div");
     grid.className = "monthGrid";
 
-    // Monday-first calendar:
-    // startDow: Mon=0..Sun=6
+    // Sunday-first:
+    // JS getDay(): Sun=0..Sat=6
     const first = new Date(m.year, m.monthIndex, 1);
     const daysInMonth = new Date(m.year, m.monthIndex + 1, 0).getDate();
-    const startDow = first.getDay();
+    const startDow = first.getDay(); // Sun=0
 
-    // Fill 6 weeks (42 cells) for consistent calendar shape
+    // Fill 6 weeks (42 cells)
     for (let i = 0; i < 42; i++) {
       const dayNum = i - startDow + 1;
 
-      // Outside month → blank cell
       if (dayNum < 1 || dayNum > daysInMonth) {
         const spacer = document.createElement("div");
         spacer.className = "cell empty";
@@ -1032,7 +950,7 @@ function renderDrinkHeatmap() {
             weekday: "long",
             month: "short",
             day: "numeric",
-          })}: ${state.soloDrinkDays.has(dayKey) ? "Solo Drinking / Bad Blackout" : "None"}`;
+          })}: ${state.soloDrinkDays.has(dayKey) ? "Solo Drink / Bad Blackout" : "None"}`;
         }
       });
 
@@ -1040,85 +958,23 @@ function renderDrinkHeatmap() {
     }
 
     block.appendChild(title);
-    block.appendChild(weekHeader);
     block.appendChild(grid);
     wrap.appendChild(block);
   }
-}
-
-function getMostRecentSoloDrinkDay() {
-  if (!state.soloDrinkDays.size) return null;
-  let max = null;
-  for (const k of state.soloDrinkDays) if (!max || k > max) max = k;
-  return max;
-}
-
-function countSoloDrinkLastNDays(n) {
-  const days = lastNDays(n);
-  let count = 0;
-  for (const k of days) if (state.soloDrinkDays.has(k)) count++;
-  return count;
-}
-
-function computeDrinkStreaks() {
-  const todayKey = ymd(new Date());
-  const firstKey = getEarliestAnyDayKey();
-  if (!firstKey) return { currentStreak: 0, bestStreak: 0 };
-
-  // current streak: consecutive days WITHOUT solo drinking up to today
-  let currentStreak = 0;
-  for (let i = 0; ; i++) {
-    const day = shiftDayKey(todayKey, -i);
-    if (day < firstKey) break;
-    if (state.soloDrinkDays.has(day)) break;
-    currentStreak++;
-  }
-
-  // best streak across range
-  let bestStreak = 0;
-  let run = 0;
-  const totalDays = daysBetween(firstKey, todayKey);
-  for (let i = 0; i <= totalDays; i++) {
-    const day = shiftDayKey(firstKey, i);
-    if (state.soloDrinkDays.has(day)) {
-      if (run > bestStreak) bestStreak = run;
-      run = 0;
-    } else {
-      run++;
-    }
-  }
-  if (run > bestStreak) bestStreak = run;
-
-  return { currentStreak, bestStreak };
-}
-
-function getEarliestAnyDayKey() {
-  let earliest = null;
-  if (state.hits.length) {
-    const firstV = ymd(new Date(Math.min(...state.hits)));
-    earliest = earliest ? (firstV < earliest ? firstV : earliest) : firstV;
-  }
-  for (const k of state.soloDrinkDays) {
-    earliest = earliest ? (k < earliest ? k : earliest) : k;
-  }
-  return earliest;
 }
 
 /* --------------------------- Export / Import --------------------------- */
 
 function exportData() {
   const payload = {
-    build: BUILD,
+    version: 1,
     exportedAt: new Date().toISOString(),
-    settings: state.settings,
-    hits: state.hits,
-    delayUntil: state.delayUntil,
-    activePage: state.activePage,
-    chartSelectedDay: state.chartSelectedDay,
-    vapes: state.vapes,
-    soloDays: [...state.soloDrinkDays],
+    data: {
+      settings: state.settings,
+      hits: state.hits,
+      soloDays: [...state.soloDrinkDays],
+    },
   };
-
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
@@ -1129,100 +985,90 @@ function exportData() {
   a.click();
   a.remove();
 
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function importData(e) {
+function importData(e) {
   const file = e.target.files?.[0];
   if (!file) return;
 
-  try {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result || ""));
+      const data = parsed?.data || parsed; // allow importing raw state too
 
-    if (!parsed || (typeof parsed !== "object")) throw new Error("Bad file.");
+      if (data.settings) state.settings = { ...defaultSettings(), ...data.settings };
+      if (Array.isArray(data.hits)) state.hits = data.hits.filter((x) => typeof x === "number");
+      if (Array.isArray(data.soloDays)) state.soloDrinkDays = new Set(data.soloDays.filter((s) => typeof s === "string"));
 
-    if (Array.isArray(parsed.hits)) state.hits = parsed.hits.filter((x) => typeof x === "number");
-    if (typeof parsed.delayUntil === "number") state.delayUntil = parsed.delayUntil;
-    else state.delayUntil = null;
-
-    if (parsed.settings && typeof parsed.settings === "object") {
-      state.settings = { ...defaultSettings(), ...parsed.settings };
-    } else {
-      state.settings = { ...defaultSettings() };
+      persist();
+      applyQuickMode();
+      syncDelayLoop();
+      renderAll();
+      alert("Import complete.");
+    } catch {
+      alert("Import failed. That file doesn’t look like a valid export.");
     }
-
-    state.activePage = parsed.activePage === "drink" ? "drink" : "vape";
-    state.chartSelectedDay = parsed.chartSelectedDay || null;
-
-    const v = parsed.vapes || {};
-    state.vapes.longRange = v.longRange || "90d";
-    state.vapes.longSelectedKey = v.longSelectedKey || null;
-
-    const solo = Array.isArray(parsed.soloDays) ? parsed.soloDays.filter((s) => typeof s === "string") : [];
-    state.soloDrinkDays = new Set(solo);
-
-    persist();
-    applyQuickMode();
-    syncDelayLoop();
-    setPage(state.activePage, { silent: true });
-    renderAll();
-
-    alert("Import complete.");
-  } catch (err) {
-    alert("Import failed: " + (err?.message || "Unknown error"));
-  } finally {
     if (els.importFile) els.importFile.value = "";
+  };
+  reader.readAsText(file);
+}
+
+/* --------------------------- Offline Cache --------------------------- */
+
+async function registerSW() {
+  try {
+    if (!("serviceWorker" in navigator)) return;
+    await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+  } catch {
+    // ignore
   }
 }
 
-/* --------------------------- Force Refresh --------------------------- */
-
-async function forceRefreshApp() {
-  try {
-    // Unregister SW
-    if ("serviceWorker" in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      for (const r of regs) await r.unregister();
-    }
-    // Clear Cache Storage
-    if ("caches" in window) {
-      const keys = await caches.keys();
-      for (const k of keys) await caches.delete(k);
-    }
-  } catch {}
-  // Hard reload
-  location.reload(true);
-}
-
-/* --------------------------- Offline Cache (SW) --------------------------- */
-
-async function registerSW() {
-  if (!("serviceWorker" in navigator)) return;
-  try {
-    await navigator.serviceWorker.register("./sw.js", { scope: "./" });
-  } catch {}
-}
-
 async function unregisterSW() {
-  if (!("serviceWorker" in navigator)) return;
   try {
+    if (!("serviceWorker" in navigator)) return;
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const r of regs) await r.unregister();
+  } catch {
+    // ignore
+  }
+}
+
+async function forceRefreshApp() {
+  // attempt to update SW + hard reload caches
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const r of regs) {
+        await r.update();
+      }
+    }
   } catch {}
+  // bust HTTP cache for this tab
+  location.reload(true);
 }
 
 /* --------------------------- Helpers --------------------------- */
 
-function ymd(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function countForDay(dayKey) {
+  let c = 0;
+  for (const ts of state.hits) {
+    if (ymd(new Date(ts)) === dayKey) c++;
+  }
+  return c;
+}
+
+function ymd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function fromDayKey(key) {
-  const [y, m, d] = key.split("-").map(Number);
+  const [y, m, d] = key.split("-").map((x) => parseInt(x, 10));
   return new Date(y, m - 1, d);
 }
 
@@ -1234,90 +1080,109 @@ function shiftDayKey(key, deltaDays) {
 
 function lastNDays(n) {
   const out = [];
-  const today = new Date();
+  const d = new Date();
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    out.push(ymd(d));
+    const x = new Date(d);
+    x.setDate(d.getDate() - i);
+    out.push(ymd(x));
   }
   return out;
 }
 
-function countForDay(dayKey) {
-  let c = 0;
-  for (const ts of state.hits) if (ymd(new Date(ts)) === dayKey) c++;
-  return c;
+function lastNDaysFrom(n, endKey) {
+  // n days ending at endKey (inclusive), oldest->newest
+  const out = [];
+  const end = fromDayKey(endKey);
+  for (let i = n - 1; i >= 0; i--) {
+    const x = new Date(end);
+    x.setDate(end.getDate() - i);
+    out.push(ymd(x));
+  }
+  return out;
+}
+
+function allDaysFromHits() {
+  if (!state.hits.length) return lastNDays(7);
+  const minTs = Math.min(...state.hits);
+  const startKey = ymd(new Date(minTs));
+  const endKey = ymd(new Date());
+  return allDaysBetween(startKey, endKey);
+}
+
+function allDaysBetween(startKey, endKey) {
+  const out = [];
+  let cur = startKey;
+  while (cur <= endKey) {
+    out.push(cur);
+    cur = shiftDayKey(cur, 1);
+    if (out.length > 20000) break;
+  }
+  return out;
+}
+
+function daysBetween(a, b) {
+  const ms = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
+}
+
+function formatCountdown(msLeft) {
+  const s = Math.ceil(msLeft / 1000);
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
 function dollars(x) {
-  return (x || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
+  const v = Number.isFinite(x) ? x : 0;
+  return v.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-function clampInt(v, lo, hi) {
-  const n = parseInt(v, 10);
-  if (!Number.isFinite(n)) return lo;
-  return Math.max(lo, Math.min(hi, n));
+function clampInt(n, min, max) {
+  const v = parseInt(n, 10);
+  if (!Number.isFinite(v)) return min;
+  return Math.max(min, Math.min(max, v));
 }
 
-function formatCountdown(ms) {
-  const totalSec = Math.ceil(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+function dayLabel(dayKey) {
+  const d = fromDayKey(dayKey);
+  return d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
+function shortMD(dayKey) {
+  const d = fromDayKey(dayKey);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function haptic() {
-  if (navigator.vibrate) navigator.vibrate(12);
+function fmtSigned(n) {
+  const v = Number.isFinite(n) ? n : 0;
+  return (v > 0 ? "+" : "") + String(v);
 }
 
-function startOfWeekKey(date) {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const day = (d.getDay() + 6) % 7; // Mon=0
-  d.setDate(d.getDate() - day);
-  return ymd(d);
+function round1(n) {
+  const v = Number.isFinite(n) ? n : 0;
+  return Math.round(v * 10) / 10;
 }
 
-function monthKey(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-}
-
-function sumCounts(keys, map) {
-  return keys.reduce((acc, k) => acc + (map.get(k) || 0), 0);
-}
-
-function daysBetween(aKey, bKey) {
-  const a = fromDayKey(aKey);
-  const b = fromDayKey(bKey);
-  const ms = b.getTime() - a.getTime();
-  return Math.floor(ms / (24 * 60 * 60 * 1000));
-}
-
-function getTwoMonths() {
-  const now = new Date();
-  const curY = now.getFullYear();
-  const curM = now.getMonth();
-
-  const prev = new Date(curY, curM - 1, 1);
-  return [
-    { year: prev.getFullYear(), monthIndex: prev.getMonth() },
-    { year: curY, monthIndex: curM }
-  ];
+function getMinutesSince(ts) {
+  const m = Math.floor((nowTs() - ts) / 60000);
+  return Math.max(0, m);
 }
 
 function monthTitle(year, monthIndex) {
   const d = new Date(year, monthIndex, 1);
   return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function getTwoMonths() {
+  const now = new Date();
+  const m0 = { year: now.getFullYear(), monthIndex: now.getMonth() };
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const m1 = { year: prev.getFullYear(), monthIndex: prev.getMonth() };
+  return [m1, m0];
+}
+
+function haptic() {
+  try {
+    if (navigator.vibrate) navigator.vibrate(10);
+  } catch {}
 }
