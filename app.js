@@ -982,7 +982,7 @@ function renderDrinkHeatmap() {
     // startDow: Mon=0..Sun=6
     const first = new Date(m.year, m.monthIndex, 1);
     const daysInMonth = new Date(m.year, m.monthIndex + 1, 0).getDate();
-    const startDow = (first.getDay() + 6) % 7;
+    const startDow = first.getDay();
 
     // Fill 6 weeks (42 cells) for consistent calendar shape
     for (let i = 0; i < 42; i++) {
