@@ -232,15 +232,47 @@ small{line-height:1.35}
   background: rgba(255,255,255,.02);
 }
 
-/* Make the canvas always fit the card width (fix iPhone drift/overflow) */
-#weekChart{
+/* Charts always fit their card (prevents iPhone drift/overflow) */
+#weekChart, #longChart{
   width:100%;
   display:block;
+}
+
+/* Long-term range pills */
+.rangePills{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.pill{
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pill.active{
+  border-color: rgba(34,211,238,.45);
+  background: rgba(34,211,238,.12);
+}
+
+/* Lifetime grid */
+.ltGrid{
+  margin-top:12px;
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:10px;
+}
+.ltBox{
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.02);
+  border-radius:14px;
+  padding:10px;
 }
 
 /* QUICK MODE */
 body.quick .wrap{padding-top:10px}
 body.quick #weeklyCard,
+body.quick #longCard,
 body.quick #logCard,
 body.quick #miniRow{display:none}
 body.quick .heroRow{flex-direction:column; align-items:stretch}

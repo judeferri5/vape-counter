@@ -82,6 +82,44 @@
       <div class="hint" id="chartHint"></div>
     </section>
 
+    <!-- NEW: Long-term card -->
+    <section class="card" id="longCard">
+      <div class="cardHead">
+        <h2>Long-term</h2>
+        <div class="rangePills" id="rangePills">
+          <button class="pill active" data-range="90d">90 days</button>
+          <button class="pill" data-range="1y">1 year</button>
+          <button class="pill" data-range="all">All time</button>
+        </div>
+      </div>
+
+      <canvas id="longChart" height="240" aria-label="Long term chart"></canvas>
+      <div class="hint" id="longHint"></div>
+
+      <div class="ltGrid">
+        <div class="ltBox">
+          <div class="miniK">Lifetime hits</div>
+          <div class="miniV" id="lifeHits">0</div>
+          <div class="miniS" id="lifeDays">0 day(s) tracked</div>
+        </div>
+        <div class="ltBox">
+          <div class="miniK">Lifetime spend</div>
+          <div class="miniV" id="lifeSpend">$0.00</div>
+          <div class="miniS" id="lifeAvg">$0.00/day avg</div>
+        </div>
+        <div class="ltBox">
+          <div class="miniK">This week</div>
+          <div class="miniV" id="wkNow">0</div>
+          <div class="miniS" id="wkDelta">— vs last week</div>
+        </div>
+        <div class="ltBox">
+          <div class="miniK">Trend</div>
+          <div class="miniV" id="wkTrend">—</div>
+          <div class="miniS">4-week avg change</div>
+        </div>
+      </div>
+    </section>
+
     <section class="card" id="logCard">
       <div class="cardHead">
         <h2>Log</h2>
