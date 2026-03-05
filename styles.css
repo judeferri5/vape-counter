@@ -51,45 +51,22 @@ body{
 }
 
 /* This is the row containing tabs + ⚡ + ⚙︎ in the header.
-   Force one line, never wrap. */
+   We want Tabs on the first line, and the icons on a second line. */
 header.top .row{
-  display:grid;
-  grid-template-columns: 1fr auto auto;
-  grid-template-rows: auto auto;
+  display:flex;
+  align-items:center;
   gap:12px;
   margin-top:12px;
-  align-items:center;
+  flex-wrap:wrap; /* allow a second line */
 }
 
-/* Tabs on row 1, centered */
-header.top .tabs{
-  grid-column: 1 / -1;
-  grid-row: 1;
-  width: fit-content;
-  max-width: 340px;
-  margin: 0 auto;
-}
-
-/* Icons on row 2, right aligned */
-header.top #toggleQuickBtn{
-  grid-column: 2;
-  grid-row: 2;
-  justify-self:end;
-}
-header.top #openSettingsBtn{
-  grid-column: 3;
-  grid-row: 2;
-  justify-self:end;
-}
-
-/* Tabs should shrink if space is tight */
+/* Tabs take the full first line */
 header.top .tabs{
   display:flex;
   align-items:center;
+  justify-content:center;
   gap:8px;
-  flex:1 1 auto;
-  min-width:0;      /* key fix */
-  max-width: 310px; /* keeps it from pushing icons down */
+  flex: 0 0 100%;
   padding:6px;
   border-radius:999px;
   border:1px solid var(--line);
@@ -97,36 +74,16 @@ header.top .tabs{
   box-shadow: 0 10px 30px rgba(0,0,0,.20) inset;
 }
 
-.tab{
-  appearance:none;
-  border:0;
-  background:transparent;
-  color:var(--muted);
-  font-weight:900;
-  letter-spacing:.2px;
-  padding:10px 14px;
-  border-radius:999px;
-  cursor:pointer;
-  white-space:nowrap;
+/* Icons sit on the second line, aligned to the right */
+header.top #toggleQuickBtn,
+header.top #openSettingsBtn{
+  flex:0 0 auto;
+  margin-left:auto;
 }
-.tab.active{
-  color:rgba(233,238,246,.95);
-  background: rgba(34,211,238,.16);
-  border:1px solid rgba(34,211,238,.35);
-}
-.tab:active{ transform: translateY(1px); }
 
-/* Icon buttons */
-.ghost{
-  appearance:none;
-  border:1px solid var(--line);
-  background: rgba(255,255,255,.03);
-  color: rgba(233,238,246,.90);
-  border-radius:14px;
-  padding:10px 12px;
-  font-weight:900;
-  cursor:pointer;
-  box-shadow: 0 10px 28px rgba(0,0,0,.25);
+/* Keep spacing between ⚡ and ⚙︎ when they're on the second row */
+header.top #openSettingsBtn{
+  margin-left:0;
 }
 .ghost:active{ transform: translateY(1px); }
 .ghost.danger{
@@ -589,111 +546,4 @@ body.quick #logCard{
   header.top .tabs{ max-width: 280px; }
   .miniRow{ grid-template-columns: 1fr; }
   .ltGrid{ grid-template-columns: 1fr; }
-}
-
-/* Chart centering hardening */
-canvas{ display:block; margin:0 auto; }
-
-/* =========================
-   Mobile-only header layout
-   (keeps desktop unchanged)
-   ========================= */
-@media (max-width: 520px){
-
-  /* Put tabs + icons all on one line again */
-  header.top .row{
-    flex-wrap:nowrap !important;
-    justify-content:space-between;
-    gap:10px;
-  }
-
-  /* Tabs grow to fill space */
-  header.top .tabs{
-    flex:1 1 auto !important;
-    max-width:none !important;
-    min-width:0 !important;
-  }
-
-  /* Keep icons on same line; slightly smaller so they fit */
-  header.top .ghost{
-    padding:10px 10px;
-    border-radius:14px;
-  }
-}
-
-/* =========================
-   iPhone Compact Mode (override)
-   Paste at VERY bottom of styles.css
-   ========================= */
-@media (max-width: 520px){
-
-  /* Make the header shorter */
-  .top{
-    padding: calc(env(safe-area-inset-top) + 10px) 12px 8px 12px;
-  }
-
-  /* Put "Habit Tracker" and the date on ONE line */
-  .title{
-    display:flex;
-    align-items:baseline;
-    gap:10px;
-    flex-wrap:nowrap;
-  }
-  .title h1{
-    font-size:30px;
-    line-height:1.05;
-    margin:0;
-    white-space:nowrap;
-  }
-  .sub{
-    margin:0 !important;
-    font-size:14px;
-    white-space:nowrap;
-  }
-
-  /* Keep the toggle + icons on ONE line (compact) */
-  header.top .row{
-    margin-top:10px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    flex-wrap:nowrap;
-  }
-
-  header.top .tabs{
-    flex:1 1 auto;
-    min-width:0;
-    max-width:260px;
-  }
-
-  /* Slightly smaller icon buttons so they fit nicely */
-  header.top .ghost{
-    padding:10px 10px;
-    border-radius:14px;
-  }
-
-  /* Undo the "stack everything" behavior for mini stats */
-  .miniRow{
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap:10px;
-  }
-
-  /* Make mini cards a bit tighter so 3 fit comfortably */
-  .mini{
-    padding:10px;
-    border-radius:18px;
-  }
-  .miniV{
-    font-size:28px;
-  }
-  .miniS{
-    font-size:13px;
-  }
-
-  /* Long-term stat grid should be 2-wide (not 1-wide) */
-  .ltGrid{
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap:10px;
-  }
 }
