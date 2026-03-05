@@ -622,7 +622,10 @@ function renderChart() {
 
   const dpr = window.devicePixelRatio || 1;
   const container = canvas.parentElement;
-  const cssW = Math.max(320, Math.floor(container.clientWidth));
+  const cs = getComputedStyle(container);
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  const padR = parseFloat(cs.paddingRight) || 0;
+  const cssW = Math.max(320, Math.floor(container.clientWidth - padL - padR));
   const cssH = 240;
 
   canvas.style.width = cssW + "px";
@@ -827,7 +830,10 @@ function drawLongChart(keys, values, range) {
 
   const dpr = window.devicePixelRatio || 1;
   const container = canvas.parentElement;
-  const cssW = Math.max(320, Math.floor(container.clientWidth));
+  const cs = getComputedStyle(container);
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  const padR = parseFloat(cs.paddingRight) || 0;
+  const cssW = Math.max(320, Math.floor(container.clientWidth - padL - padR));
   const cssH = 240;
 
   canvas.style.width = cssW + "px";
