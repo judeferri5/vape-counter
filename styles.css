@@ -620,3 +620,80 @@ canvas{ display:block; margin:0 auto; }
     border-radius:14px;
   }
 }
+
+/* =========================
+   iPhone Compact Mode (override)
+   Paste at VERY bottom of styles.css
+   ========================= */
+@media (max-width: 520px){
+
+  /* Make the header shorter */
+  .top{
+    padding: calc(env(safe-area-inset-top) + 10px) 12px 8px 12px;
+  }
+
+  /* Put "Habit Tracker" and the date on ONE line */
+  .title{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    flex-wrap:nowrap;
+  }
+  .title h1{
+    font-size:30px;
+    line-height:1.05;
+    margin:0;
+    white-space:nowrap;
+  }
+  .sub{
+    margin:0 !important;
+    font-size:14px;
+    white-space:nowrap;
+  }
+
+  /* Keep the toggle + icons on ONE line (compact) */
+  header.top .row{
+    margin-top:10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:nowrap;
+  }
+
+  header.top .tabs{
+    flex:1 1 auto;
+    min-width:0;
+    max-width:260px;
+  }
+
+  /* Slightly smaller icon buttons so they fit nicely */
+  header.top .ghost{
+    padding:10px 10px;
+    border-radius:14px;
+  }
+
+  /* Undo the "stack everything" behavior for mini stats */
+  .miniRow{
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap:10px;
+  }
+
+  /* Make mini cards a bit tighter so 3 fit comfortably */
+  .mini{
+    padding:10px;
+    border-radius:18px;
+  }
+  .miniV{
+    font-size:28px;
+  }
+  .miniS{
+    font-size:13px;
+  }
+
+  /* Long-term stat grid should be 2-wide (not 1-wide) */
+  .ltGrid{
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap:10px;
+  }
+}
