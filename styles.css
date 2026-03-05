@@ -593,3 +593,30 @@ body.quick #logCard{
 
 /* Chart centering hardening */
 canvas{ display:block; margin:0 auto; }
+
+/* =========================
+   Mobile-only header layout
+   (keeps desktop unchanged)
+   ========================= */
+@media (max-width: 520px){
+
+  /* Put tabs + icons all on one line again */
+  header.top .row{
+    flex-wrap:nowrap !important;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  /* Tabs grow to fill space */
+  header.top .tabs{
+    flex:1 1 auto !important;
+    max-width:none !important;
+    min-width:0 !important;
+  }
+
+  /* Keep icons on same line; slightly smaller so they fit */
+  header.top .ghost{
+    padding:10px 10px;
+    border-radius:14px;
+  }
+}
