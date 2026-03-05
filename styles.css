@@ -51,22 +51,45 @@ body{
 }
 
 /* This is the row containing tabs + ⚡ + ⚙︎ in the header.
-   We want Tabs on the first line, and the icons on a second line. */
+   Force one line, never wrap. */
 header.top .row{
-  display:flex;
-  align-items:center;
+  display:grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-rows: auto auto;
   gap:12px;
   margin-top:12px;
-  flex-wrap:wrap; /* allow a second line */
+  align-items:center;
 }
 
-/* Tabs take the full first line */
+/* Tabs on row 1, centered */
+header.top .tabs{
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: fit-content;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+/* Icons on row 2, right aligned */
+header.top #toggleQuickBtn{
+  grid-column: 2;
+  grid-row: 2;
+  justify-self:end;
+}
+header.top #openSettingsBtn{
+  grid-column: 3;
+  grid-row: 2;
+  justify-self:end;
+}
+
+/* Tabs should shrink if space is tight */
 header.top .tabs{
   display:flex;
   align-items:center;
-  justify-content:center;
   gap:8px;
-  flex: 0 0 100%;
+  flex:1 1 auto;
+  min-width:0;      /* key fix */
+  max-width: 310px; /* keeps it from pushing icons down */
   padding:6px;
   border-radius:999px;
   border:1px solid var(--line);
@@ -74,16 +97,36 @@ header.top .tabs{
   box-shadow: 0 10px 30px rgba(0,0,0,.20) inset;
 }
 
-/* Icons sit on the second line, aligned to the right */
-header.top #toggleQuickBtn,
-header.top #openSettingsBtn{
-  flex:0 0 auto;
-  margin-left:auto;
+.tab{
+  appearance:none;
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  font-weight:900;
+  letter-spacing:.2px;
+  padding:10px 14px;
+  border-radius:999px;
+  cursor:pointer;
+  white-space:nowrap;
 }
+.tab.active{
+  color:rgba(233,238,246,.95);
+  background: rgba(34,211,238,.16);
+  border:1px solid rgba(34,211,238,.35);
+}
+.tab:active{ transform: translateY(1px); }
 
-/* Keep spacing between ⚡ and ⚙︎ when they're on the second row */
-header.top #openSettingsBtn{
-  margin-left:0;
+/* Icon buttons */
+.ghost{
+  appearance:none;
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: rgba(233,238,246,.90);
+  border-radius:14px;
+  padding:10px 12px;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow: 0 10px 28px rgba(0,0,0,.25);
 }
 .ghost:active{ transform: translateY(1px); }
 .ghost.danger{
@@ -547,3 +590,6 @@ body.quick #logCard{
   .miniRow{ grid-template-columns: 1fr; }
   .ltGrid{ grid-template-columns: 1fr; }
 }
+
+/* Chart centering hardening */
+canvas{ display:block; margin:0 auto; }
